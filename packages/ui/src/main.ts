@@ -489,7 +489,9 @@ world.addEventListener('dblclick', (e) => {
   if (f) goFile(f.dataset.f as string);
 });
 vp.addEventListener('click', (e) => {
-  if (!moved && !(e.target as HTMLElement).closest('.bp-file') && !(e.target as HTMLElement).closest('.bp-tools')) select(null);
+  const t = e.target as HTMLElement;
+  // blocks are siblings of file cards in the world, not children, so check both
+  if (!moved && !t.closest('.bp-file') && !t.closest('.bp-blk') && !t.closest('.bp-tools')) select(null);
 });
 let first = true;
 async function load(): Promise<void> {
@@ -516,7 +518,8 @@ function connect(): void {
     const rev = (JSON.parse((ev as MessageEvent).data) as { rev: number }).rev;
     live.textContent = 'watching';
     live.className = 'bp-live on';
-    if (!state || rev !== state.rev) void load().catch(() => {});
+    // the first load is already in flight when this first event lands, so only react once we have state
+    if (state && rev !== state.rev) void load().catch(() => {});
   });
   es.onerror = () => {
     live.textContent = 'disconnected';

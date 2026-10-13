@@ -10,6 +10,14 @@ import type { CardSize, Positions } from '@blueprint/core/layout';
 
 const FILE = (root: string) => path.join(root, '.blueprint', 'layout.json');
 
+// .blueprint ignores itself, so it never shows up as untracked noise and we don't touch your .gitignore
+export function ensureStateDir(root: string): void {
+  const dir = path.join(root, '.blueprint');
+  fs.mkdirSync(dir, { recursive: true });
+  const gi = path.join(dir, '.gitignore');
+  if (!fs.existsSync(gi)) fs.writeFileSync(gi, '*\n');
+}
+
 export function readLayoutCache(root: string): Positions | null {
   try {
     const j = JSON.parse(fs.readFileSync(FILE(root), 'utf8')) as { version?: number; positions?: Positions };
@@ -21,7 +29,7 @@ export function readLayoutCache(root: string): Positions | null {
 
 export function writeLayoutCache(root: string, positions: Positions): void {
   const f = FILE(root);
-  fs.mkdirSync(path.dirname(f), { recursive: true });
+  ensureStateDir(root);
   const tmp = `${f}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify({ version: 1, positions }, null, 1));
   fs.renameSync(tmp, f);
@@ -81,6 +89,39 @@ export async function placeFiles(
     if (out[f]) continue;
     out[f] = { x, y };
     y += (cards[f] as CardSize).h + GAP_Y;
+  }
+  return unoverlap(out, cards);
+}
+
+// a file that grew can run into the one below it. the only time an existing file moves:
+// the lower one of an overlapping pair is pushed down just far enough to clear.
+export function unoverlap(pos: Positions, cards: Record<string, CardSize>): Positions {
+  const files = Object.keys(pos).filter((f) => cards[f]).sort((a, b) => (pos[a] as { y: number }).y - (pos[b] as { y: number }).y || a.localeCompare(b));
+  const out: Positions = { ...pos };
+  for (let pass = 0; pass < files.length; pass++) {
+    let moved = false;
+    for (let i = 0; i < files.length; i++) {
+      for (let j = i + 1; j < files.length; j++) {
+        const a = files[i] as string;
+        const b = files[j] as string;
+        const pa = out[a] as { x: number; y: number };
+        const pb = out[b] as { x: number; y: number };
+        const ca = cards[a] as CardSize;
+        const cb = cards[b] as CardSize;
+        const sepX = pa.x + ca.w + 24 <= pb.x || pb.x + cb.w + 24 <= pa.x;
+        if (sepX) continue;
+        const lower = pa.y <= pb.y ? b : a;
+        const upper = lower === b ? a : b;
+        const pu = out[upper] as { x: number; y: number };
+        const pl = out[lower] as { x: number; y: number };
+        const need = pu.y + (cards[upper] as CardSize).h + GAP_Y;
+        if (pl.y < need) {
+          out[lower] = { x: pl.x, y: need };
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
   }
   return out;
 }

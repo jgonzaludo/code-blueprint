@@ -6,7 +6,7 @@ import { allCards, type Positions } from '@blueprint/core/layout';
 import type { Graph } from '@blueprint/core';
 import { headSha } from './git.js';
 import { GraphBuilder } from './graph.js';
-import { placeFiles, readLayoutCache, writeLayoutCache } from './layout.js';
+import { ensureStateDir, placeFiles, readLayoutCache, writeLayoutCache } from './layout.js';
 import { openInEditor } from './open.js';
 
 export interface ServerOptions {
@@ -245,7 +245,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   await refresh();
 
-  fs.mkdirSync(path.join(root, '.blueprint'), { recursive: true });
+  ensureStateDir(root);
   fs.writeFileSync(serverFile(root), JSON.stringify({ pid: process.pid, port: boundPort, token, root, startedAt: new Date().toISOString() }), { mode: 0o600 });
 
   // watcher: native recursive fs.watch, debounced
