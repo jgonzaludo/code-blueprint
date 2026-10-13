@@ -100,6 +100,7 @@ export type ParsedEdge = Omit<Edge, 'status'>;
 export interface ParsedTree {
   blocks: Map<BlockId, ParsedBlock>;
   edges: Map<string, ParsedEdge>; // key: from|to|callText
+  selfEdges: Map<string, ParsedEdge>; // calls inside one class block, same key shape. not part of the Graph.
   fedges: Set<string>; // key: from|to
   files: string[]; // repo-relative
   texts: Map<string, string>; // repo-relative path -> full source text

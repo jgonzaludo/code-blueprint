@@ -16,8 +16,11 @@ export function collectEdges(
   blocks: Map<BlockId, ParsedBlock>,
   checker: ts.TypeChecker,
   isProjectFile: (fileName: string) => boolean,
-): Map<string, ParsedEdge> {
+): { edges: Map<string, ParsedEdge>; selfEdges: Map<string, ParsedEdge> } {
   const edges = new Map<string, ParsedEdge>();
+  // calls from a class to its own methods. kept out of `edges` (a block never points at itself)
+  // but print needs them to show Inventory.reserve -> Inventory.getProduct.
+  const selfEdges = new Map<string, ParsedEdge>();
 
   // per-file interval index, so finding a decl's block doesn't scan every node
   const spans = new Map<ts.SourceFile, Span[]>();
@@ -55,8 +58,9 @@ export function collectEdges(
         const callLine0 = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line;
         const callText = (lines[callLine0] ?? '').trim();
         const key = `${id}|${to}|${callText}`;
-        if (edges.has(key)) return;
-        edges.set(key, {
+        const into = to === id ? selfEdges : edges;
+        if (into.has(key)) return;
+        into.set(key, {
           from: id,
           to,
           callText,
@@ -97,7 +101,9 @@ export function collectEdges(
               if (!isProjectFile(dsf.fileName)) continue;
               // the block whose range contains the declaration (methods land on their class)
               const tid = blockAt(dsf, d.pos, d.end);
-              if (!tid || tid === id) continue;
+              if (!tid) continue;
+              // only class blocks keep self calls. a plain function calling itself is just recursion.
+              if (tid === id && blocks.get(id)?.kind !== 'class') continue;
               record(tid, n, dsf, dsf.getLineAndCharacterOfPosition(d.getStart(dsf)).line, 'checker');
               hit = true;
             }
@@ -118,5 +124,5 @@ export function collectEdges(
       visit(node);
     }
   }
-  return edges;
+  return { edges, selfEdges };
 }

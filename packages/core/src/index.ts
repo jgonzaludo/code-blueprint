@@ -3,7 +3,8 @@ import { parseTree, type ParseOptions } from './parse.js';
 import type { Graph } from './types.js';
 
 export * from './types.js';
-export { parseTree, loadCompilerOptions, defaultOptions, type ParseOptions } from './parse.js';
+export { parseTree, loadCompilerOptions, defaultOptions, isTestPath, type ParseOptions } from './parse.js';
+export { buildFileTree, type CallNode, type FileTree, type TreeOptions } from './callTree.js';
 export { buildGraph, lcs } from './diff.js';
 
 // parse two trees on disk and diff them (before = baseline, after = new)

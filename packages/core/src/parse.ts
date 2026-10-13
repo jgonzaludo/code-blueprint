@@ -35,6 +35,10 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.next', 'coverage',
 const SRC_EXT = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const MAX_LINES = 5000;
 
+// test files and type-level test files, by name or by living in a test dir
+export const isTestPath = (rel: string): boolean =>
+  /(^|\/)(test|tests|__tests__)\//.test(rel) || /\.(test|spec)(-d)?\.[cm]?[jt]sx?$/.test(rel);
+
 const norm = (p: string) => p.split(path.sep).join('/');
 const isSource = (f: string) => SRC_EXT.test(f) && !/\.d\.(ts|mts|cts)$/.test(f);
 
@@ -154,6 +158,6 @@ export function parseTree(rootDir: string, opts: ParseOptions = {}): ParsedTree 
     }
   }
 
-  const edges = collectEdges(nodes, blocks, checker, (fn) => fileSet.has(norm(fn)));
-  return { blocks, edges, fedges, files: files.map(rel), texts, typeErrors };
+  const { edges, selfEdges } = collectEdges(nodes, blocks, checker, (fn) => fileSet.has(norm(fn)));
+  return { blocks, edges, selfEdges, fedges, files: files.map(rel), texts, typeErrors };
 }
