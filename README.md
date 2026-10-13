@@ -8,7 +8,12 @@ Its main job is planning features with Claude. The plan lands on the map as an o
 
 ## Status
 
-**Early.** Nothing is published to npm and there is no UI yet. What works today is the core parser and `blueprint print`, which shows a file's entry points and what they call, as plain text or json. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
+**Early.** Nothing is published to npm. Today it can:
+
+- `blueprint` (or `blueprint watch`): serve a live map of your project on `127.0.0.1`, zoomable from files down to exact code, with arrows from each call line to the thing it calls. It re-parses on save and shows what changed against your last commit.
+- `blueprint print <file>`: the same facts as a text tree, or json, for use in a terminal or in chat.
+
+You can use both any time, for any question about your code. They do not need a feature plan. The plan-then-check loop (draft a feature, review it on the map, then check what got built) is the next milestone, not built yet. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 Work happens on the `dev` branch.
 
@@ -16,8 +21,9 @@ Work happens on the `dev` branch.
 
 ```bash
 pnpm install
-pnpm --filter code-blueprint build
+pnpm -r build
 cd examples/orders-demo
+node ../../packages/cli/dist/cli.js            # opens the map in your browser
 node ../../packages/cli/dist/cli.js print src/orders.ts
 ```
 
@@ -33,6 +39,8 @@ processOrder  src/orders.ts:68
 ```
 
 A leading `:` means the line is in the same file as the parent. `--json` gives the same data, `--depth 2` expands callees in other files, tests are skipped unless you pass `--include-tests`.
+
+The map server binds to `127.0.0.1` only, checks the `Host` header, and needs the random token printed in its URL. Nothing leaves your machine, and there is no telemetry.
 
 ## How it works
 

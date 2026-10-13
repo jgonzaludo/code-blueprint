@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@blueprint/core": "workspace:*",
-    "tsup": "^8.5.1"
+    "tsup": "^8.5.1",
+    "@blueprint/ui": "workspace:*"
   }
 }

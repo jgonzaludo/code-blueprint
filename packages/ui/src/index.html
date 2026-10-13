@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprint</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="bp-app">
+  <header class="bp-top">
+    <h1>Blueprint</h1>
+    <span class="bp-live" id="bp-live" role="status">connecting</span>
+    <span class="bp-meta" id="bp-meta"></span>
+    <span class="bp-spacer"></span>
+    <button class="bp-btn" id="bp-relayout" title="Throw away the cached file positions and lay out again">Re-layout</button>
+    <button class="bp-btn" id="bp-theme" aria-label="Switch theme">Theme</button>
+  </header>
+  <main class="bp-work">
+    <section class="bp-panel bp-vpwrap" aria-label="Code map">
+      <div class="bp-vp" id="bp-vp" tabindex="0">
+        <div class="bp-world bp-map" id="bp-world"></div>
+        <div class="bp-tools">
+          <span class="bp-lvl" id="bp-lvl">Project map</span>
+          <button class="bp-btn" id="bp-zo" aria-label="Zoom out">-</button>
+          <button class="bp-btn" id="bp-zi" aria-label="Zoom in">+</button>
+          <button class="bp-btn" id="bp-fit">Fit</button>
+        </div>
+        <div class="bp-hint">Drag to pan. Ctrl or Cmd with the wheel to zoom. Double-click a file to zoom to it.</div>
+        <div class="bp-empty" id="bp-empty" hidden>No TypeScript or JavaScript files found here.</div>
+      </div>
+    </section>
+    <aside class="bp-panel bp-side" aria-label="Details">
+      <div class="bp-sh">Changes vs <span id="bp-base">HEAD</span></div>
+      <div class="bp-sb" id="bp-changes"></div>
+      <div class="bp-sh">Selected block</div>
+      <div class="bp-sb" id="bp-insp"><p class="bp-ph">Select a block to see what calls it and what it calls. Zoom out for the project, zoom in to read every line.</p></div>
+    </aside>
+  </main>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

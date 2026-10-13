@@ -22,6 +22,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm --filter code-blueprint build
+      - run: pnpm -r build
       - name: smoke test the built cli
-        run: node packages/cli/dist/cli.js print src/orders.ts --root examples/orders-demo
+        run: |
+          node packages/cli/dist/cli.js print src/orders.ts --root examples/orders-demo
+          node scripts/smoke.mjs
