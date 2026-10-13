@@ -6,8 +6,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "blueprint": "dist/cli.js",
-    "bp": "dist/cli.js"
+    "blueprint": "dist/cli.js"
   },
   "files": ["dist"],
   "engines": { "node": ">=20" },

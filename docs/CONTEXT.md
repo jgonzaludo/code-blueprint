@@ -21,7 +21,7 @@ After Claude applies the edit, the parser re-reads the real code and checks Clau
 
 - Brand: **Blueprint**
 - npm package: `code-blueprint`, free when checked on 2026-10-13, so recheck before publishing
-- Installed commands: `blueprint`, plus `bp` as an alias
+- Installed command: `blueprint` (single bin, so `npx code-blueprint` runs it too). A `bp` alias was dropped on 2026-10-13.
 - Language support in v1: TypeScript and JavaScript, using the TypeScript compiler API
 
 ---
@@ -578,7 +578,7 @@ CHECK  parser re-read the code
 ## 17. Naming
 
 - **Brand: Blueprint.** A blueprint is the plan you draw before building, and also what you check the building against, so it matches plan then check. The look (real code blocks with arrows) also reads as a technical drawing.
-- **npm:** `blueprint`, `blueprintjs`, `blueprint-cli` and `blueprint-ai` are taken. `blueprint-ai` is an agentic planning CLI, which is a similar space. `code-blueprint`, `blueprint-code`, `blueprint-map`, `blueprintmap`, `blueprint-live` and `blueprint-dev` were free on 2026-10-13. The pick is to **publish `code-blueprint`**, with `bin` entries `blueprint` and `bp`. A scoped `@<user>/blueprint` is the backup.
+- **npm:** `blueprint`, `blueprintjs`, `blueprint-cli` and `blueprint-ai` are taken. `blueprint-ai` is an agentic planning CLI, which is a similar space. `code-blueprint`, `blueprint-code`, `blueprint-map`, `blueprintmap`, `blueprint-live` and `blueprint-dev` were free on 2026-10-13. The pick is to **publish `code-blueprint`**, with a single `bin` entry, `blueprint`. A scoped `@<user>/blueprint` is the backup.
 - **Search noise:** Palantir's Blueprint UI toolkit and Unreal Engine Blueprints dominate the results. Mitigate with the repo name `code-blueprint`, a clear tagline, and the README keywords "code map", "plan", "Claude", "TypeScript".
 - **Still to do:** check that the GitHub repo name is free, skim for trademark conflicts, and recheck npm right before the first publish.
 - **Runner-up:** `cyanotype`, the chemical process behind real blueprints. It's distinctive and free, but harder to type.
@@ -597,7 +597,7 @@ code-blueprint/
   packages/
     core/                   # parse, diff, plan, check (pure, overlay FS) + tests
       src/parse.ts  src/blocks.ts  src/edges.ts  src/diff.ts  src/plan.ts  src/check.ts  src/types.ts
-    cli/                    # bin: blueprint, bp  (watch, server, print, plan, check, snapshot)
+    cli/                    # bin: blueprint  (watch, server, print, plan, check, snapshot)
       src/watch.ts  src/server.ts  src/print.ts  src/open.ts  src/git.ts
     ui/                     # Plan Map page (vite build -> static assets; inlined for snapshot)
     tui/                    # later
