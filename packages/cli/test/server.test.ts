@@ -168,7 +168,7 @@ describe('live updates', () => {
     const t0 = Date.now();
     while (srv.rev() < 2 && Date.now() - t0 < 5000) await new Promise((r) => setTimeout(r, 25));
     expect(srv.rev()).toBe(2);
-    // the save to rev bump is the "under about 300 ms" criterion from M3
+    // the save to rev bump is the "under about 300 ms" criterion for the live map
     expect(Date.now() - t0).toBeLessThan(1500);
     await new Promise((r) => setTimeout(r, 100));
     ac.abort();

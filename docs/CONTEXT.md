@@ -618,20 +618,22 @@ code-blueprint/
 
 ## 19. Build order with acceptance criteria
 
-**M0: repo scaffold.** Workspaces, lint, test, CI (GitHub Actions on Node 20 and 22). Port `build3.js` into `core` as a typed module.
+Stages are named by feature, not by number. Each one is its own PR (or a few), and commits and PR titles follow Conventional Commits with these names as scopes where it helps (see CONTRIBUTING.md).
+
+**scaffold:** Workspaces, lint, test, CI (GitHub Actions on Node 20 and 22). Port `build3.js` into `core` as a typed module.
 - Done when: `pnpm test` reproduces the refund demo goldens (24 blocks, 18 edges, 9 new, fstat as in section 7).
 
-**M1: core parser, hardened.**
+**parser:** core parser, hardened.
 - Done when:
   - 8.3 items 1, 3 and 6 are in
   - no clean type-check is required
   - fixtures pass for arrow-function consts, default exports, re-exports, `new X()` and class methods
   - it parses one real mid-size open source TS repo (pick something with about 200 files) in under 3 s cold, with arrows spot-checked by hand
 
-**M2: `blueprint print`.**
+**print:** `blueprint print`.
 - Done when: the text tree in section 13 renders for a file, with `--json`. Usable from Claude Code immediately.
 
-**M3: watcher, server and UI (the v1 window).**
+**live-map:** watcher, server and UI (the v1 window).
 - Done when:
   - `npx code-blueprint` in a repo opens the browser to the map
   - saving a file updates the map in under about 300 ms on the demo
@@ -639,20 +641,20 @@ code-blueprint/
   - the security checks from 10.3 are in
   - "click to open in editor" works through `code -g`
 
-**M4: plan and check.**
+**plan-check:** plan and check.
 - Done when:
   - `plan new`, `plan add`, `plan show` and `check` work
   - the map shows the plan band, badges, exact lines and dashed arrows
   - after applying, arrows turn solid and missing ones are flagged
   - the refund demo reproduces the "9 of 10" check: the plan claims `refundHandler -> recordAudit`, and the code doesn't have it
 
-**M5: the Claude Code skill.**
+**claude-skill:** the Claude Code skill.
 - Done when: in a fresh Claude Code session, "add X" leads to Claude starting the watcher, posting a draft plan, waiting, applying and reporting the check, without manual steps.
 
-**M6: snapshot and the Claude app skill.**
+**snapshot:** snapshot and the Claude app skill.
 - Done when: `blueprint snapshot` makes one HTML file that works from `file://`, and the Claude app skill publishes it as an artifact.
 
-**M7 and later:** the TUI, more edge kinds (JSX, type layer), monorepo tsconfig references, the VS Code extension, tree-sitter languages.
+**later:** the TUI, more edge kinds (JSX, type layer), monorepo tsconfig references, the VS Code extension, tree-sitter languages.
 
 ---
 

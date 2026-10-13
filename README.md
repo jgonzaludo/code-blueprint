@@ -13,7 +13,7 @@ Its main job is planning features with Claude. The plan lands on the map as an o
 - `blueprint` (or `blueprint watch`): serve a live map of your project on `127.0.0.1`, zoomable from files down to exact code, with arrows from each call line to the thing it calls. It re-parses on save and shows what changed against your last commit.
 - `blueprint print <file>`: the same facts as a text tree, or json, for use in a terminal or in chat.
 
-You can use both any time, for any question about your code. They do not need a feature plan. The plan-then-check loop (draft a feature, review it on the map, then check what got built) is the next milestone, not built yet. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
+You can use both any time, for any question about your code. They do not need a feature plan. The plan-then-check loop (draft a feature, review it on the map, then check what got built) is what comes next, not built yet. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 Work happens on the `dev` branch.
 

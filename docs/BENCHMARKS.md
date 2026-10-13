@@ -8,7 +8,7 @@ BLUEPRINT_BENCH_ROOT=/path/to/src BLUEPRINT_BENCH_OUT=/tmp/report.json pnpm --fi
 
 Env knobs: `BLUEPRINT_BENCH_TESTS=1` keeps test files in, `BLUEPRINT_BENCH_NO_DIAG=1` skips the type error count.
 
-## M1 run: remeda
+## Parser run: remeda
 
 Repo `remeda/remeda`, commit `8e6e78f`, parsed `packages/remeda/src` with no `node_modules` installed (so unresolved externals show up as type errors, which are counted and ignored). Apple silicon laptop, Node 24, TypeScript 5.9.3, cold single run.
 
