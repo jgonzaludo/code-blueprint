@@ -8,7 +8,31 @@ Its main job is planning features with Claude. The plan lands on the map as an o
 
 ## Status
 
-**Early.** Nothing is published to npm and there is no usable CLI or UI yet. Right now the repo holds the core parser, ported from a design-session prototype, with a golden test on a small demo project. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
+**Early.** Nothing is published to npm and there is no UI yet. What works today is the core parser and `blueprint print`, which shows a file's entry points and what they call, as plain text or json. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
+
+Work happens on the `dev` branch.
+
+## Try it
+
+```bash
+pnpm install
+pnpm --filter code-blueprint build
+cd examples/orders-demo
+node ../../packages/cli/dist/cli.js print src/orders.ts
+```
+
+```
+processOrder  src/orders.ts:68
+├─ calculateOrderTotal  :49
+│  ├─ roundMoney  src/utils/money.ts:2
+│  └─ Inventory.getProduct  :28
+├─ reserveOrderStock  :59
+│  └─ Inventory.reserve  :38
+│     └─ Inventory.getProduct  :28 (above)
+└─ recordAudit  src/audit/log.ts:7
+```
+
+A leading `:` means the line is in the same file as the parent. `--json` gives the same data, `--depth 2` expands callees in other files, tests are skipped unless you pass `--include-tests`.
 
 ## How it works
 
