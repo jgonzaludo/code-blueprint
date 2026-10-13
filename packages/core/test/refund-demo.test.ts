@@ -42,7 +42,11 @@ describe('refund demo golden', () => {
 
   it('matches the prototype graph json exactly', () => {
     const expected = JSON.parse(fs.readFileSync(path.join(demo, 'expected/graph.json'), 'utf8'));
-    // roundtrip so undefined fields drop out like they do in the file
-    expect(JSON.parse(JSON.stringify(graph))).toEqual(expected);
+    // fields added after the prototype (anchors, exported, meta) get stripped, the rest must match exactly
+    const got = JSON.parse(JSON.stringify(graph));
+    delete got.meta;
+    for (const e of got.edges) for (const k of ['callLine', 'targetLine', 'source', 'resolution']) delete e[k];
+    for (const b of Object.values(got.blocks) as { exported?: boolean }[]) delete b.exported;
+    expect(got).toEqual(expected);
   });
 });

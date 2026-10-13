@@ -1,7 +1,16 @@
 // data model, see docs/CONTEXT.md section 7
 
 export type BlockId = string; // "<relpath>::<name>"
-export type BlockKind = 'imports' | 'function' | 'class' | 'interface' | 'type' | 'const' | 'enum';
+export type BlockKind =
+  | 'imports'
+  | 'function'
+  | 'class'
+  | 'interface'
+  | 'type'
+  | 'const' // arrow fns, function exprs, exported consts, export default exprs
+  | 'enum'
+  | 'namespace'
+  | 'module'; // leftover top-level statements, so nothing in a file is invisible
 export type LineDiff = ' ' | '+' | '-';
 export type Status = 'same' | 'mod' | 'new' | 'del';
 export type EdgeStatus = 'same' | 'new' | 'del';
@@ -66,7 +75,7 @@ export interface Graph {
   fedges: FileEdge[];
   fstat: FileStat;
   ftext: FileText;
-  meta?: { root: string; baseline: string; parsedAt: string; files: number; ms: number };
+  meta?: { root: string; baseline: string; parsedAt: string; files: number; ms: number; typeErrors?: number };
   plan?: PlanInfo;
 }
 
@@ -78,8 +87,12 @@ export interface ParsedBlock {
   name: string;
   start: number; // 1-based, includes leading comments
   end: number;
+  // 1-based source line for each entry in code. not contiguous for merged
+  // blocks (overloads, interface merging) and for module blocks.
+  lineNums: number[];
   code: string[]; // dedented lines
   members: Member[];
+  exported?: boolean;
 }
 
 export type ParsedEdge = Omit<Edge, 'status'>;
@@ -89,4 +102,6 @@ export interface ParsedTree {
   edges: Map<string, ParsedEdge>; // key: from|to|callText
   fedges: Set<string>; // key: from|to
   files: string[]; // repo-relative
+  texts: Map<string, string>; // repo-relative path -> full source text
+  typeErrors: number; // errors in project files. we parse anyway, arrows may be incomplete
 }

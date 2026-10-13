@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { Block, Edge, FileEdge, FileStat, FileText, Graph, Line, LineDiff, ParsedTree } from './types.js';
 
 interface LcsOp {
@@ -42,18 +40,16 @@ export function lcs(a: string[], b: string[]): LcsOp[] {
 }
 
 // whole file text as lines, null when the file doesn't exist in that tree
-function readLines(root: string, rel: string): string[] | null {
-  try {
-    const t = fs.readFileSync(path.join(root, rel), 'utf8').split('\n');
-    if (t[t.length - 1] === '') t.pop();
-    return t;
-  } catch {
-    return null;
-  }
+function fileLines(tree: ParsedTree, rel: string): string[] | null {
+  const text = tree.texts.get(rel);
+  if (text === undefined) return null;
+  const t = text.split('\n');
+  if (t[t.length - 1] === '') t.pop();
+  return t;
 }
 
 // diff two parsed trees into one Graph. before is the baseline, after is the new state.
-export function buildGraph(before: ParsedTree, after: ParsedTree, beforeRoot: string, afterRoot: string): Graph {
+export function buildGraph(before: ParsedTree, after: ParsedTree): Graph {
   const ids = new Set([...before.blocks.keys(), ...after.blocks.keys()]);
   const blocks: Record<string, Block> = {};
 
@@ -65,22 +61,24 @@ export function buildGraph(before: ParsedTree, after: ParsedTree, beforeRoot: st
     let status: Block['status'];
     if (!b && a) {
       status = 'new';
-      lines = a.code.map((t, j) => ({ t, d: '+', o: null, n: a.start + j }));
+      lines = a.code.map((t, j) => ({ t, d: '+', o: null, n: a.lineNums[j] as number }));
     } else if (b && !a) {
       status = 'del';
-      lines = b.code.map((t, i) => ({ t, d: '-', o: b.start + i, n: null }));
+      lines = b.code.map((t, i) => ({ t, d: '-', o: b.lineNums[i] as number, n: null }));
     } else {
       const bb = b!;
       const aa = a!;
       lines = lcs(bb.code, aa.code).map((x) => ({
         t: x.t,
         d: x.d,
-        o: x.d !== '+' ? bb.start + (x.i as number) : null,
-        n: x.d !== '-' ? aa.start + (x.j as number) : null,
+        o: x.d !== '+' ? (bb.lineNums[x.i as number] as number) : null,
+        n: x.d !== '-' ? (aa.lineNums[x.j as number] as number) : null,
       }));
       status = lines.some((l) => l.d !== ' ') ? 'mod' : 'same';
     }
-    blocks[id] = { id, file: ref.file, kind: ref.kind, name: ref.name, status, lines, members: ref.members };
+    const block: Block = { id, file: ref.file, kind: ref.kind, name: ref.name, status, lines, members: ref.members };
+    if (ref.exported) block.exported = true;
+    blocks[id] = block;
   }
 
   // edges: key is from|to|callText. in both = same, only after = new, only before = del
@@ -94,16 +92,11 @@ export function buildGraph(before: ParsedTree, after: ParsedTree, beforeRoot: st
   });
 
   const allFiles = new Set([...after.files, ...before.files]);
-  const fstat: FileStat = {};
-  for (const f of allFiles) {
-    const inBlocks = Object.values(blocks).filter((x) => x.file === f);
-    fstat[f] = !before.files.includes(f) ? 'new' : inBlocks.some((x) => x.status !== 'same') ? 'mod' : 'same';
-  }
 
   const ftext: FileText = {};
   for (const f of allFiles) {
-    const bt = readLines(beforeRoot, f);
-    const at = readLines(afterRoot, f);
+    const bt = fileLines(before, f);
+    const at = fileLines(after, f);
     if (!bt) ftext[f] = (at ?? []).map((t, j) => ({ d: '+', t, o: null, n: j + 1 }));
     else if (!at) ftext[f] = bt.map((t, i) => ({ d: '-', t, o: i + 1, n: null }));
     else {
@@ -114,6 +107,14 @@ export function buildGraph(before: ParsedTree, after: ParsedTree, beforeRoot: st
         n: x.d !== '-' ? (x.j as number) + 1 : null,
       }));
     }
+  }
+
+  const fstat: FileStat = {};
+  for (const f of allFiles) {
+    const inBlocks = Object.values(blocks).filter((x) => x.file === f);
+    // block diffs miss non-block changes, so the whole-file diff has the last word
+    const fileChanged = (ftext[f] ?? []).some((l) => l.d !== ' ');
+    fstat[f] = !before.files.includes(f) ? 'new' : inBlocks.some((x) => x.status !== 'same') || fileChanged ? 'mod' : 'same';
   }
 
   return { blocks, edges, fedges, fstat, ftext };
