@@ -25,6 +25,10 @@ export interface ParseOptions {
   overlay?: Map<string, string | null>;
   // skip the tsconfig lookup and use these instead
   compilerOptions?: ts.CompilerOptions;
+  // drop files by repo-relative path (e.g. tests). nothing is excluded by default.
+  exclude?: (rel: string) => boolean;
+  // count type errors (default true). off skips a full semantic pass, handy for hot paths.
+  diagnostics?: boolean;
 }
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.next', 'coverage', '.git', '.blueprint']);
@@ -86,7 +90,8 @@ export function parseTree(rootDir: string, opts: ParseOptions = {}): ParsedTree 
   for (const [rel, content] of opts.overlay ?? []) overlay.set(`${root}/${rel}`, content);
 
   // disk files, minus deleted, plus drafted
-  const fileList = new Set(walk(root).map(norm));
+  const exclude = opts.exclude;
+  const fileList = new Set(walk(root).map(norm).filter((f) => !exclude?.(f.slice(root.length + 1))));
   for (const [abs, content] of overlay) {
     if (content === null) fileList.delete(abs);
     else if (isSource(abs)) fileList.add(abs);
@@ -130,8 +135,10 @@ export function parseTree(rootDir: string, opts: ParseOptions = {}): ParsedTree 
     if (!fileSet.has(sf.fileName)) continue;
     const f = rel(sf.fileName);
     texts.set(f, sf.getFullText());
-    for (const d of [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]) {
-      if (d.category === ts.DiagnosticCategory.Error) typeErrors++;
+    if (opts.diagnostics !== false) {
+      for (const d of [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)]) {
+        if (d.category === ts.DiagnosticCategory.Error) typeErrors++;
+      }
     }
     const got = collectBlocks(sf, f);
     for (const b of got.blocks) blocks.set(b.id, b);
