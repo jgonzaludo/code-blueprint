@@ -4,11 +4,35 @@ import { L, allCards, type CardSize, type Positions } from '@blueprint/core/layo
 // the map page. one world element, moved with a css transform. the server owns where files sit,
 // this file draws them and never moves anything on its own.
 
+interface CheckEdge {
+  from: string;
+  to: string;
+  callText: string;
+  source: 'parser' | 'claim';
+  check: 'confirmed' | 'missing' | 'unplanned';
+  note?: string;
+}
+interface PlanState {
+  id: string;
+  title: string;
+  state: 'proposed' | 'applied';
+  planGraph: Graph;
+  appliedGraph: Graph;
+  positions: Positions;
+  check: {
+    summary: { confirmed: number; missing: number; unplanned: number; planned: number };
+    edges: CheckEdge[];
+    blocks: { missing: string[]; extra: string[] };
+  };
+}
 interface State {
   rev: number;
   graph: Graph;
   positions: Positions;
+  plans: Array<{ id: string; title: string }>;
+  plan: PlanState | null;
 }
+type Mode = 'current' | 'plan' | 'applied';
 
 interface Box {
   x: number;
@@ -44,6 +68,16 @@ const world = $('bp-world');
 const vp = $('bp-vp');
 
 let state: State | null = null;
+let mode: Mode = 'current';
+let modeChosen = false; // once you pick a view, a new push doesn't switch it under you
+
+// the graph and positions for the active view
+function view(): { graph: Graph; positions: Positions } {
+  const s = state as State;
+  if (s.plan && mode === 'plan') return { graph: s.plan.planGraph, positions: s.plan.positions };
+  if (s.plan && mode === 'applied') return { graph: s.plan.appliedGraph, positions: s.plan.positions };
+  return { graph: s.graph, positions: s.positions };
+}
 let cards: Record<string, CardSize> = {};
 let cardBox: Record<string, Box> = {};
 const blockPos = new Map<string, BlockPos>();
@@ -182,7 +216,7 @@ const shortName = (id: string) => id.split('::')[1] ?? id;
 
 function counts(f: string): { mod: number; nw: number; del: number } {
   let mod = 0, nw = 0, del = 0;
-  for (const b of Object.values(state?.graph.blocks ?? {})) {
+  for (const b of Object.values(state ? view().graph.blocks : {})) {
     if (b.file !== f || b.kind === 'imports') continue;
     if (b.status === 'mod') mod++;
     else if (b.status === 'new') nw++;
@@ -191,22 +225,45 @@ function counts(f: string): { mod: number; nw: number; del: number } {
   return { mod, nw, del };
 }
 
+// files that are unchanged but called into by the proposed code, for the plan view badges
+function usedByNewCode(g: Graph): Set<string> {
+  const out = new Set<string>();
+  if (mode !== 'plan') return out;
+  for (const e of g.edges) {
+    if (e.status !== 'new' && e.source !== 'claim') continue;
+    const f = g.blocks[e.to]?.file;
+    if (f && g.fstat[f] === 'same') out.add(f);
+  }
+  return out;
+}
+
 function buildWorld(prevSigs: Map<string, string> | null): void {
-  const g = (state as State).graph;
+  const g = view().graph;
+  const usedByNew = usedByNewCode(g);
+  world.classList.remove('bp-mode-current', 'bp-mode-plan', 'bp-mode-applied');
+  world.classList.add(`bp-mode-${mode}`);
   cards = allCards(g);
   cardBox = {};
   blockPos.clear();
   let html = '';
   for (const f of Object.keys(cards).sort()) {
     const card = cards[f] as CardSize;
-    const p = (state as State).positions[f] ?? { x: 0, y: 0 };
+    const p = view().positions[f] ?? { x: 0, y: 0 };
     cardBox[f] = { x: p.x, y: p.y, w: card.w, h: card.h };
     const st = g.fstat[f] ?? 'same';
     const c = counts(f);
     const badges: string[] = [];
-    if (st === 'new') badges.push(`<span class="bp-badge bp-b-new">NEW</span>`);
-    else if (st === 'del') badges.push(`<span class="bp-badge bp-b-del">DELETED</span>`);
-    else if (st === 'mod') badges.push(`<span class="bp-badge bp-b-mod">~${c.mod + c.nw + c.del || 1} changed</span>`);
+    if (st === 'new') {
+      const n = Object.values(g.blocks).filter((b) => b.file === f && b.kind !== 'imports').length;
+      badges.push(`<span class="bp-badge bp-b-new">NEW${mode === 'plan' ? '  ' + n + ' blocks' : ''}</span>`);
+    } else if (st === 'del') badges.push(`<span class="bp-badge bp-b-del">DELETED</span>`);
+    else if (st === 'mod') {
+      // a brand new block inside an existing file is a "slot", the rest are edits to what was there
+      const slots = c.nw;
+      const edits = c.mod + c.del;
+      const parts = [edits ? `~${edits} modified` : '', slots ? `+${slots} new slot${slots === 1 ? '' : 's'}` : ''].filter(Boolean);
+      badges.push(`<span class="bp-badge bp-b-mod">${parts.length ? parts.join('  ') : '~1 changed'}</span>`);
+    } else if (usedByNew.has(f)) badges.push(`<span class="bp-badge bp-b-use">used by new code</span>`);
     html += `<div class="bp-file bp-s-${st}" data-f="${esc(f)}" style="left:${p.x}px;top:${p.y}px;width:${card.w}px;height:${card.h}px">` +
       `<div class="bp-fh"><span class="bp-fn"><span class="bp-dir">${esc(fileDir(f))}</span>${esc(fileName(f))}</span><span class="bp-row">${badges.join('')}</span></div></div>`;
     for (const bx of card.blocks) {
@@ -215,8 +272,17 @@ function buildWorld(prevSigs: Map<string, string> | null): void {
       const y = p.y + bx.y;
       blockPos.set(b.id, { x, y, w: bx.w, h: bx.h, file: f, shown: bx.shown, el: null, filled: false });
       const tag = tagFor(b.status);
+      if (tag && b.status === 'new' && mode === 'plan') tag[1] = 'new (proposed)';
       html += `<div class="bp-blk bp-k-${b.kind} bp-s-${b.status}" tabindex="0" data-id="${esc(b.id)}" style="left:${x}px;top:${y}px;width:${bx.w}px;height:${bx.h}px">` +
         `<div class="bp-bh"><span class="bp-bk">${b.kind}</span><span class="bp-bn">${esc(b.name)}</span>${tag ? `<span class="bp-tag ${tag[0]}">${tag[1]}</span>` : ''}</div><div class="bp-bb"></div></div>`;
+    }
+  }
+  if (mode === 'plan') {
+    const fresh = Object.keys(cards).filter((f) => g.fstat[f] === 'new').map((f) => cardBox[f] as Box);
+    if (fresh.length) {
+      const x = Math.min(...fresh.map((b) => b.x));
+      const y = Math.min(...fresh.map((b) => b.y));
+      html += `<div class="bp-band" style="left:${x}px;top:${y - 84}px">New files, above the map</div>`;
     }
   }
   html += '<svg class="bp-arrows bp-fedges" id="bp-fsvg" width="1" height="1"></svg><svg class="bp-arrows bp-bedges" id="bp-bsvg" width="1" height="1"></svg>';
@@ -260,7 +326,7 @@ function fillVisible(): void {
   for (const [id, p] of blockPos) {
     if (p.filled || !p.el) continue;
     if (p.x > x1 || p.x + p.w < x0 || p.y > y1 || p.y + p.h < y0) continue;
-    const b = (state as State).graph.blocks[id] as Block;
+    const b = view().graph.blocks[id] as Block;
     const rows = b.lines.slice(0, L.MAXLINES).map((l) => {
       const num = l.d === '-' ? l.o : l.n;
       const d = l.d === '+' ? 'bp-d-p' : l.d === '-' ? 'bp-d-m' : 'bp-d-s';
@@ -275,7 +341,7 @@ function fillVisible(): void {
 /* arrows */
 function lineY(id: string, line: number | undefined, useOld: boolean): number {
   const p = blockPos.get(id) as BlockPos;
-  const b = (state as State).graph.blocks[id] as Block;
+  const b = view().graph.blocks[id] as Block;
   let idx = -1;
   if (line !== undefined) idx = b.lines.findIndex((l) => (useOld ? l.o : l.n) === line);
   if (idx < 0 || idx >= p.shown) return p.y + L.BHH / 2;
@@ -298,14 +364,16 @@ function route(a: BlockPos, t: BlockPos, y1: number, y2: number): { d: string; x
 
 const DEFS = '<defs><marker id="bp-mb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-b" d="M0 0L8 4L0 8z"/></marker>' +
   '<marker id="bp-mn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-n" d="M0 0L8 4L0 8z"/></marker>' +
-  '<marker id="bp-mg" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-g" d="M0 0L8 4L0 8z"/></marker></defs>';
+  '<marker id="bp-mg" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-g" d="M0 0L8 4L0 8z"/></marker>' +
+  '<marker id="bp-mh" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path class="bp-mk-h" d="M1 1L7 4L1 7z"/></marker>' +
+  '<marker id="bp-ma" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-a" d="M0 0L8 4L0 8z"/></marker></defs>';
 
 let bedgesBuilt = false;
 function drawBlockEdges(): void {
   if (!state) return;
   const svg = $('bp-bsvg') as unknown as SVGSVGElement;
   let s = DEFS;
-  for (const e of state.graph.edges) {
+  for (const e of view().graph.edges) {
     const a = blockPos.get(e.from);
     const t = blockPos.get(e.to);
     if (!a || !t) continue;
@@ -313,10 +381,22 @@ function drawBlockEdges(): void {
     const y1 = lineY(e.from, e.callLine, gone);
     const y2 = lineY(e.to, e.targetLine, gone);
     const r = route(a, t, y1, y2);
-    const k = gone ? 'bp-gone' : e.status === 'new' ? 'bp-new' : '';
-    const mk = gone ? 'bp-mg' : e.status === 'new' ? 'bp-mn' : 'bp-mb';
+    // how this arrow should look. parser facts are solid, anything not on disk yet is dashed,
+    // claims are dashed with a hollow head so nobody reads them as parsed.
+    let k = gone ? 'bp-gone' : e.status === 'new' ? 'bp-new' : '';
+    let mk = gone ? 'bp-mg' : e.status === 'new' ? 'bp-mn' : 'bp-mb';
+    if (mode === 'plan' && e.source === 'claim') { k = 'bp-claim'; mk = 'bp-mh'; }
+    else if (mode === 'plan' && e.status === 'new') { k = 'bp-new bp-proposed'; }
+    if (mode === 'applied') {
+      if (e.check === 'missing') { k = 'bp-missing'; mk = 'bp-mg'; }
+      else if (e.check === 'unplanned') { k = 'bp-unplanned'; mk = 'bp-ma'; }
+      else if (e.check === 'confirmed') { k = 'bp-new bp-confirmed'; mk = 'bp-mn'; }
+    }
     s += `<path class="bp-ed ${k}" data-from="${esc(e.from)}" data-to="${esc(e.to)}" d="${r.d}" marker-end="url(#${mk})"/>` +
       `<circle class="bp-edot ${k}" cx="${r.x}" cy="${r.y}" r="3.4"/>`;
+    if (mode === 'applied' && e.check === 'missing') {
+      s += `<text class="bp-elab" x="${r.x + 14}" y="${r.y - 8}">not in the code</text>`;
+    }
   }
   svg.innerHTML = s;
   bedgesBuilt = true;
@@ -326,7 +406,7 @@ function drawFileEdges(): void {
   if (!state) return;
   const svg = $('bp-fsvg') as unknown as SVGSVGElement;
   let s = DEFS.replace(/id="bp-m/g, 'id="bp-fm').replace(/#bp-m/g, '#bp-fm');
-  for (const fe of state.graph.fedges) {
+  for (const fe of view().graph.fedges) {
     const a = cardBox[fe.from];
     const t = cardBox[fe.to];
     if (!a || !t) continue;
@@ -361,7 +441,7 @@ function drawFileEdges(): void {
 
 /* selection and inspector */
 function applySelection(): void {
-  const g = state?.graph;
+  const g = state ? view().graph : undefined;
   const related = new Set<string>();
   if (sel && g) {
     related.add(sel);
@@ -403,7 +483,7 @@ function inspect(): void {
     el.innerHTML = '<p class="bp-ph">Select a block to see what calls it and what it calls. Zoom out for the project, zoom in to read every line.</p>';
     return;
   }
-  const g = state.graph;
+  const g = view().graph;
   const b = g.blocks[sel] as Block;
   const by = g.edges.filter((e) => e.to === sel && e.status !== 'del');
   const uses = g.edges.filter((e) => e.from === sel && e.status !== 'del');
@@ -433,33 +513,98 @@ function inspect(): void {
   };
 }
 
+function item(mark: [string, string], label: string, small: string, go: string): string {
+  return `<button class="bp-it" data-go="${esc(go)}"><span class="bp-m ${mark[1]}">${mark[0]}</span><span>${esc(label)}</span><small>${esc(small)}</small></button>`;
+}
+
 function renderChanges(): void {
   const el = $('bp-changes');
   if (!state) return;
-  const g = state.graph;
-  const rows = Object.keys(g.fstat).sort().filter((f) => g.fstat[f] !== 'same');
-  if (!rows.length) {
-    el.innerHTML = `<p>No changes. The map matches ${esc(g.meta?.baseline ?? 'the baseline')}. Edit and save a file and the changed blocks will light up here.</p>`;
-    return;
+  const g = view().graph;
+  const plan = state.plan;
+  const sh = $('bp-sh1');
+  let h = '';
+
+  if (mode === 'plan' && plan) {
+    sh.textContent = `Plan: ${plan.title}`;
+    const newFiles = Object.keys(g.fstat).filter((f) => g.fstat[f] === 'new').sort();
+    const changed = Object.values(g.blocks).filter((b) => b.status === 'mod' || (b.status === 'new' && g.fstat[b.file] === 'mod'));
+    const touched = [...usedByNewCode(g)].sort();
+    const blocksIn = (f: string) => Object.values(g.blocks).filter((b) => b.file === f && b.kind !== 'imports').length;
+    if (newFiles.length) h += `<div class="bp-grp"><h4>New files, above the map</h4>${newFiles.map((f) => item(['+', 'bp-n'], fileName(f), `${blocksIn(f)} blocks`, `f:${f}`)).join('')}</div>`;
+    if (changed.length) h += `<div class="bp-grp"><h4>Changed files</h4>${changed.map((b) => item(['~', 'bp-c2'], `${fileName(b.file)} ${b.name}`, b.status === 'new' ? 'new slot' : `${b.lines.filter((l) => l.d !== ' ').length} lines`, `b:${b.id}`)).join('')}</div>`;
+    if (touched.length) h += `<div class="bp-grp"><h4>Used by the new code (unchanged)</h4>${touched.map((f) => item(['>', 'bp-u'], fileName(f), 'unchanged', `f:${f}`)).join('')}</div>`;
+    const parsed = g.edges.filter((e) => e.status === 'new' && e.source !== 'claim').length;
+    const claims = g.edges.filter((e) => e.source === 'claim').length;
+    h += `<div class="bp-rec"><b>Proposed, not on disk yet.</b> ${parsed} dashed arrows come from the draft code, so the parser can read them. ${claims ? `${claims} more ${claims === 1 ? 'is a claim' : 'are claims'} with a hollow head: ${claims === 1 ? 'a call' : 'calls'} the plan says will exist but no draft file contains. ${claims === 1 ? 'It stays' : 'They stay'} a claim until the parser checks the real code.` : ''}</div>`;
+  } else if (mode === 'applied' && plan) {
+    sh.textContent = `After applying: ${plan.title}`;
+    const c = plan.check;
+    const bad = c.edges.filter((e) => e.check !== 'confirmed');
+    const label = (e: CheckEdge) => `${fileName(e.from.split('::')[0] as string)} ${shortName(e.from)} to ${shortName(e.to)}`;
+    h += `<div class="bp-rec ${c.summary.missing || c.summary.unplanned ? 'bp-bad' : 'bp-good'}"><b>${c.summary.confirmed} of ${c.summary.planned} proposed arrows confirmed</b> by the parser after the edit.`;
+    if (plan.state === 'proposed') h += ' <i>The plan has not been applied yet, so nothing can be confirmed.</i>';
+    if (bad.length) {
+      h += '<ul>' + bad.map((e) => `<li>${e.check === 'missing' ? 'Not in the code' : 'Unplanned call'}: <code>${esc(label(e))}</code>${e.source === 'claim' ? ' (claim)' : ''}</li>`).join('') + '</ul>';
+    }
+    if (c.blocks.missing.length) h += `<p>Planned blocks not written: ${c.blocks.missing.map((m) => `<code>${esc(m)}</code>`).join(', ')}</p>`;
+    if (c.blocks.extra.length) h += `<p>New blocks nobody planned: ${c.blocks.extra.map((m) => `<code>${esc(m)}</code>`).join(', ')}</p>`;
+    h += '</div>';
+  } else {
+    sh.textContent = `Changes vs ${g.meta?.baseline ?? 'HEAD'}`;
+    const rows = Object.keys(g.fstat).sort().filter((f) => g.fstat[f] !== 'same');
+    if (!rows.length) {
+      h = `<p>No changes. The map matches ${esc(g.meta?.baseline ?? 'the baseline')}. Edit and save a file and the changed blocks will light up here.</p>`;
+    } else {
+      h = rows.map((f) => {
+        const s = g.fstat[f];
+        const mark: [string, string] = s === 'new' ? ['+', 'bp-n'] : s === 'del' ? ['-', 'bp-d'] : ['~', 'bp-c2'];
+        const c = counts(f);
+        return item(mark, fileName(f), s === 'new' ? 'new file' : s === 'del' ? 'deleted' : `${c.mod + c.nw + c.del || 1} blocks`, `f:${f}`);
+      }).join('');
+    }
   }
-  el.innerHTML = rows.map((f) => {
-    const s = g.fstat[f];
-    const mark = s === 'new' ? ['+', 'bp-n'] : s === 'del' ? ['-', 'bp-d'] : ['~', 'bp-c2'];
-    const c = counts(f);
-    const small = s === 'new' ? 'new file' : s === 'del' ? 'deleted' : `${c.mod + c.nw + c.del || 1} blocks`;
-    return `<button class="bp-it" data-f="${esc(f)}"><span class="bp-m ${mark[1]}">${mark[0]}</span><span>${esc(fileName(f))}</span><small>${esc(small)}</small></button>`;
-  }).join('');
-  el.querySelectorAll<HTMLElement>('[data-f]').forEach((b) => (b.onclick = () => goFile(b.dataset.f as string)));
+  el.innerHTML = h;
+  el.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => {
+    b.onclick = () => {
+      const [k, v] = (b.dataset.go as string).split(/:(.+)/);
+      if (k === 'f') goFile(v as string);
+      else goBlock(v as string);
+    };
+  });
 }
 
 function renderMeta(): void {
   if (!state) return;
-  const m = state.graph.meta;
-  $('bp-base').textContent = m?.baseline ?? 'HEAD';
-  const bits = [`${Object.keys(state.graph.fstat).length} files`, `${Object.keys(state.graph.blocks).length} blocks`, `${state.graph.edges.filter((e) => e.status !== 'del').length} arrows`];
+  const g = state.graph;
+  const m = g.meta;
+  const v = view().graph;
+  const bits = [`${Object.keys(v.fstat).length} files`, `${Object.keys(v.blocks).length} blocks`, `${v.edges.filter((e) => e.status !== 'del').length} arrows`];
   if (m?.typeErrors) bits.push(`${m.typeErrors} type errors, arrows may be incomplete`);
   $('bp-meta').textContent = bits.join('  |  ');
-  ($('bp-empty') as HTMLElement).hidden = Object.keys(state.graph.fstat).length > 0;
+  ($('bp-empty') as HTMLElement).hidden = Object.keys(g.fstat).length > 0 || !!state.plan;
+  // mode switch only exists when there is a plan to look at
+  const modes = $('bp-modes');
+  modes.hidden = !state.plan;
+  modes.querySelectorAll<HTMLElement>('[data-m]').forEach((b) => b.classList.toggle('on', b.dataset.m === mode));
+  const label = $('bp-planname');
+  label.hidden = !state.plan;
+  label.textContent = state.plan ? `${state.plan.title}${state.plan.state === 'applied' ? ' (applied)' : ' (proposed)'}` : '';
+}
+
+function setMode(m: Mode, chosen = true): void {
+  if (!state) return;
+  if (m !== 'current' && !state.plan) m = 'current';
+  if (m === mode) return;
+  mode = m;
+  if (chosen) modeChosen = true;
+  if (sel && !view().graph.blocks[sel]) sel = null;
+  buildWorld(null);
+  renderMeta();
+  renderChanges();
+  inspect();
+  // the plan band sits above the old bounds, so frame it again
+  if (!touched) fitAll(400);
 }
 
 /* events and updates */
@@ -501,6 +646,11 @@ async function load(): Promise<void> {
   const prev = state;
   const prevSigs = prev ? new Map(Object.entries(prev.graph.blocks).map(([id, b]) => [id, sigOf(b)])) : null;
   state = next;
+  if (!state.plan) mode = 'current';
+  else if (!modeChosen && (!prev || !prev.plan || prev.plan.id !== state.plan.id)) {
+    // a plan just showed up: lead with it, applied plans lead with the check
+    mode = state.plan.state === 'applied' ? 'applied' : 'plan';
+  }
   buildWorld(prevSigs);
   renderMeta();
   renderChanges();
@@ -553,6 +703,9 @@ $('bp-theme').onclick = () => {
   const dark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
   setTheme(dark ? 'light' : 'dark');
 };
+$('bp-modes').querySelectorAll<HTMLElement>('[data-m]').forEach((b) => {
+  b.onclick = () => setMode(b.dataset.m as Mode);
+});
 $('bp-relayout').onclick = async () => {
   await fetch('/api/relayout', { method: 'POST' }).catch(() => {});
   await load().catch(() => {});

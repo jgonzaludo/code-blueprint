@@ -125,3 +125,45 @@ export function unoverlap(pos: Positions, cards: Record<string, CardSize>): Posi
   }
   return out;
 }
+
+// where a plan's new files go: a band above everything that's already on the map, callers on the left.
+// files we've seen before keep the position they have, same stability rule as the rest.
+export function placePlan(graph: Graph, cards: Record<string, CardSize>, cached: Positions): Positions {
+  const files = Object.keys(cards).sort();
+  const out: Positions = {};
+  const fresh: string[] = [];
+  for (const f of files) {
+    const p = cached[f];
+    if (p) out[f] = p;
+    else fresh.push(f);
+  }
+  if (!fresh.length) return out;
+
+  let minY = Infinity;
+  let minX = Infinity;
+  for (const f of Object.keys(out)) {
+    const p = out[f] as { x: number; y: number };
+    minY = Math.min(minY, p.y);
+    minX = Math.min(minX, p.x);
+  }
+  if (!Number.isFinite(minY)) {
+    minY = 0;
+    minX = 0;
+  }
+  const bandH = Math.max(...fresh.map((f) => (cards[f] as CardSize).h));
+  const y = minY - bandH - GAP_Y * 2;
+
+  // callers first: files nothing else in the band imports come first
+  const inBand = new Set(fresh);
+  const incoming = new Map<string, number>(fresh.map((f) => [f, 0]));
+  for (const e of graph.fedges) {
+    if (inBand.has(e.from) && inBand.has(e.to) && e.from !== e.to) incoming.set(e.to, (incoming.get(e.to) ?? 0) + 1);
+  }
+  fresh.sort((a, b) => (incoming.get(a) ?? 0) - (incoming.get(b) ?? 0) || a.localeCompare(b));
+  let x = minX;
+  for (const f of fresh) {
+    out[f] = { x, y };
+    x += (cards[f] as CardSize).w + GAP_X;
+  }
+  return out;
+}

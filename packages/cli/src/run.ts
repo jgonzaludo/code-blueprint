@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildFileTree, isTestPath, parseTree, type FileTree } from '@blueprint/core';
 import { canOpenBrowser, openBrowser } from './open.js';
+import { checkCommand, planCommand } from './planCommands.js';
 import { renderFileTree } from './print.js';
 import { serverFile, startServer } from './server.js';
 
@@ -11,6 +12,8 @@ export interface IO {
   out: (s: string) => void;
   err: (s: string) => void;
   cwd: string;
+  // piped input, null when stdin is a terminal. only plan add reads it.
+  stdin?: () => Promise<string | null>;
 }
 
 const HELP = `blueprint: a live map of real code
@@ -20,13 +23,23 @@ usage:
   blueprint watch [--port 4711] [--no-open] [--baseline HEAD|disk] [--root .]
   blueprint status [--json]
   blueprint print <file|dir> [--depth 1] [--json]
+  blueprint plan new <id> [--title "..."]
+  blueprint plan add <id> <file> [--from <path>]     (or pipe the draft on stdin)
+  blueprint plan rm <id> <file>
+  blueprint plan claim <id> <fromBlock> <toBlock> [--note "..."]
+  blueprint plan show [id] [--json]
+  blueprint plan apply <id>
+  blueprint plan list
+  blueprint check [id] [--json]
 
 commands:
   watch    serve the map on 127.0.0.1 and update it as files change
   status   is a watcher running for this project, and where
   print    text tree of a file: entry points and what they call, in call order
+  plan     draft a feature as full files, see it as an overlay, apply it
+  check    after applying: which planned arrows the real code has
 
-planned, not built yet: plan, check, snapshot, tui
+planned, not built yet: snapshot, tui
 
 options:
   --root <dir>        project root (default: current directory)
@@ -35,12 +48,15 @@ options:
   --baseline <b>      HEAD (default, diff against the last commit) or disk (files as they were at start)
   --relayout          throw away the cached file positions and lay out again
   --depth <n>         file hops to expand in print (default 1)
+  --title <t>         plan title (plan new)
+  --from <path>       read a draft from this file instead of stdin (plan add)
+  --note <text>       why a claimed arrow is expected (plan claim)
   --json              same data as json
   --include-tests     parse test files too (skipped by default)
   -h, --help          show this
 `;
 
-const PLANNED = new Set(['plan', 'check', 'snapshot', 'tui']);
+const PLANNED = new Set(['snapshot', 'tui']);
 
 // returns the exit code. 0 ok, 1 runtime problem, 2 bad usage.
 export async function run(argv: string[], io: IO): Promise<number> {
@@ -54,6 +70,9 @@ export async function run(argv: string[], io: IO): Promise<number> {
         depth: { type: 'string' },
         json: { type: 'boolean', default: false },
         'include-tests': { type: 'boolean', default: false },
+        title: { type: 'string' },
+        from: { type: 'string' },
+        note: { type: 'string' },
         port: { type: 'string' },
         'no-open': { type: 'boolean', default: false },
         baseline: { type: 'string' },
@@ -75,6 +94,10 @@ export async function run(argv: string[], io: IO): Promise<number> {
   const root0 = path.resolve(io.cwd, values.root ?? '.');
   if (!cmd || cmd === 'watch') return watchCommand(root0, values, io);
   if (cmd === 'status') return statusCommand(root0, values.json === true, io);
+  if (cmd === 'plan' || cmd === 'check') {
+    const o = { title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
+    return cmd === 'check' ? checkCommand(root0, positionals[1], o, io) : planCommand(root0, positionals.slice(1), o, io);
+  }
   if (PLANNED.has(cmd)) {
     io.err(`blueprint: '${cmd}' is not built yet. see docs/CONTEXT.md section 19 for the order.\n`);
     return 2;

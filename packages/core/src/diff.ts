@@ -114,7 +114,13 @@ export function buildGraph(before: ParsedTree, after: ParsedTree): Graph {
     const inBlocks = Object.values(blocks).filter((x) => x.file === f);
     // block diffs miss non-block changes, so the whole-file diff has the last word
     const fileChanged = (ftext[f] ?? []).some((l) => l.d !== ' ');
-    fstat[f] = !before.files.includes(f) ? 'new' : inBlocks.some((x) => x.status !== 'same') || fileChanged ? 'mod' : 'same';
+    fstat[f] = !before.files.includes(f)
+      ? 'new'
+      : !after.files.includes(f)
+        ? 'del'
+        : inBlocks.some((x) => x.status !== 'same') || fileChanged
+          ? 'mod'
+          : 'same';
   }
 
   return { blocks, edges, fedges, fstat, ftext };

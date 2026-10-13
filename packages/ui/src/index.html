@@ -12,6 +12,10 @@
   <header class="bp-top">
     <h1>Blueprint</h1>
     <span class="bp-live" id="bp-live" role="status">connecting</span>
+    <span class="bp-seg" id="bp-modes" role="group" aria-label="View" hidden>
+      <button data-m="current">Current code</button><button data-m="plan">Claude's plan</button><button data-m="applied">After applying</button>
+    </span>
+    <span class="bp-planname" id="bp-planname" hidden></span>
     <span class="bp-meta" id="bp-meta"></span>
     <span class="bp-spacer"></span>
     <button class="bp-btn" id="bp-relayout" title="Throw away the cached file positions and lay out again">Re-layout</button>
@@ -32,7 +36,7 @@
       </div>
     </section>
     <aside class="bp-panel bp-side" aria-label="Details">
-      <div class="bp-sh">Changes vs <span id="bp-base">HEAD</span></div>
+      <div class="bp-sh" id="bp-sh1">Changes</div>
       <div class="bp-sb" id="bp-changes"></div>
       <div class="bp-sh">Selected block</div>
       <div class="bp-sb" id="bp-insp"><p class="bp-ph">Select a block to see what calls it and what it calls. Zoom out for the project, zoom in to read every line.</p></div>
