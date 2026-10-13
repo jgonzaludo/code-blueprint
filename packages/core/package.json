@@ -5,7 +5,10 @@
   "description": "parse a ts project into blocks, lines and call edges, then diff two trees",
   "license": "MIT",
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./layout": "./src/layout.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"

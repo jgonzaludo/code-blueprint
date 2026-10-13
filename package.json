@@ -6,7 +6,9 @@
   "description": "a zoomable map of real code, plan features with Claude then check what got built",
   "license": "MIT",
   "packageManager": "pnpm@12.11.2",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "pnpm -r --if-present test",
     "lint": "eslint .",
@@ -19,5 +21,8 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "elkjs": "^0.12.0"
   }
 }

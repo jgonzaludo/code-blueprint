@@ -65,13 +65,13 @@ describe('blueprint print', () => {
 });
 
 describe('usage errors', () => {
-  it('shows help and exits 2 with no args', async () => {
-    const r = await bp([]);
-    expect(r.code).toBe(2);
+  it('shows help with --help', async () => {
+    const r = await bp(['--help']);
+    expect(r.code).toBe(0);
     expect(r.out).toContain('usage:');
   });
   it('says planned commands are not built', async () => {
-    const r = await bp(['watch']);
+    const r = await bp(['plan']);
     expect(r.code).toBe(2);
     expect(r.err).toContain('not built yet');
   });
@@ -83,5 +83,15 @@ describe('usage errors', () => {
   it('rejects a bad depth', async () => {
     const r = await bp(['print', 'src/orders.ts', '--depth', '0']);
     expect(r.code).toBe(2);
+  });
+});
+
+describe('blueprint status', () => {
+  it('says not running when there is no watcher', async () => {
+    const r = await bp(['status']);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('not running');
+    const j = await bp(['status', '--json']);
+    expect(JSON.parse(j.out).running).toBe(false);
   });
 });

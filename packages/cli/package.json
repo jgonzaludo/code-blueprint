@@ -8,14 +8,19 @@
   "bin": {
     "blueprint": "dist/cli.js"
   },
-  "files": ["dist"],
-  "engines": { "node": ">=20" },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "elkjs": "^0.12.0",
     "typescript": "~5.9.3"
   },
   "devDependencies": {

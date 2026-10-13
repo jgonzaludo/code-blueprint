@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildFileTree, isTestPath, parseTree, type FileTree } from '@blueprint/core';
+import { canOpenBrowser, openBrowser } from './open.js';
 import { renderFileTree } from './print.js';
+import { serverFile, startServer } from './server.js';
 
 export interface IO {
   out: (s: string) => void;
@@ -10,24 +13,34 @@ export interface IO {
   cwd: string;
 }
 
-const HELP = `blueprint: a map of real code
+const HELP = `blueprint: a live map of real code
 
 usage:
-  blueprint print <file|dir> [--root .] [--depth 1] [--json] [--include-tests]
+  blueprint                       same as: blueprint watch
+  blueprint watch [--port 4711] [--no-open] [--baseline HEAD|disk] [--root .]
+  blueprint status [--json]
+  blueprint print <file|dir> [--depth 1] [--json]
 
 commands:
+  watch    serve the map on 127.0.0.1 and update it as files change
+  status   is a watcher running for this project, and where
   print    text tree of a file: entry points and what they call, in call order
 
-planned, not built yet: watch, plan, check, snapshot, status, tui
+planned, not built yet: plan, check, snapshot, tui
+
 options:
-  --root <dir>      project root (default: current directory)
-  --depth <n>       file hops to expand (default 1, callees in other files are listed but not expanded)
-  --json            same data as json
-  --include-tests   parse test files too (skipped by default)
-  -h, --help        show this
+  --root <dir>        project root (default: current directory)
+  --port <n>          first port to try (default 4711)
+  --no-open           don't open a browser tab
+  --baseline <b>      HEAD (default, diff against the last commit) or disk (files as they were at start)
+  --relayout          throw away the cached file positions and lay out again
+  --depth <n>         file hops to expand in print (default 1)
+  --json              same data as json
+  --include-tests     parse test files too (skipped by default)
+  -h, --help          show this
 `;
 
-const PLANNED = new Set(['watch', 'plan', 'check', 'snapshot', 'status', 'tui']);
+const PLANNED = new Set(['plan', 'check', 'snapshot', 'tui']);
 
 // returns the exit code. 0 ok, 1 runtime problem, 2 bad usage.
 export async function run(argv: string[], io: IO): Promise<number> {
@@ -41,6 +54,10 @@ export async function run(argv: string[], io: IO): Promise<number> {
         depth: { type: 'string' },
         json: { type: 'boolean', default: false },
         'include-tests': { type: 'boolean', default: false },
+        port: { type: 'string' },
+        'no-open': { type: 'boolean', default: false },
+        baseline: { type: 'string' },
+        relayout: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
     });
@@ -51,10 +68,13 @@ export async function run(argv: string[], io: IO): Promise<number> {
   const { values, positionals } = parsed;
   const [cmd, target] = positionals;
 
-  if (values.help || !cmd) {
+  if (values.help) {
     io.out(HELP);
-    return cmd || values.help ? 0 : 2;
+    return 0;
   }
+  const root0 = path.resolve(io.cwd, values.root ?? '.');
+  if (!cmd || cmd === 'watch') return watchCommand(root0, values, io);
+  if (cmd === 'status') return statusCommand(root0, values.json === true, io);
   if (PLANNED.has(cmd)) {
     io.err(`blueprint: '${cmd}' is not built yet. see docs/CONTEXT.md section 19 for the order.\n`);
     return 2;
@@ -120,4 +140,82 @@ export async function run(argv: string[], io: IO): Promise<number> {
       .join('\n\n') + '\n',
   );
   return 0;
+}
+
+// the ui bundle sits next to the cli bundle (dist/ui), see tsup.config.ts
+const here = path.dirname(fileURLToPath(import.meta.url));
+export const defaultUiDir = path.join(here, 'ui');
+
+async function watchCommand(
+  root: string,
+  values: { port?: string; baseline?: string; 'no-open'?: boolean; 'include-tests'?: boolean; relayout?: boolean },
+  io: IO,
+): Promise<number> {
+  const baseline = values.baseline ?? 'HEAD';
+  if (baseline !== 'HEAD' && baseline !== 'disk') {
+    io.err('blueprint: --baseline must be HEAD or disk\n');
+    return 2;
+  }
+  const port = values.port === undefined ? 4711 : Number(values.port);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    io.err('blueprint: --port must be a port number\n');
+    return 2;
+  }
+  if (!fs.existsSync(path.join(defaultUiDir, 'index.html'))) {
+    io.err('blueprint: the ui bundle is missing. run the build first (pnpm build)\n');
+    return 1;
+  }
+  const srv = await startServer({
+    root,
+    port,
+    baseline,
+    includeTests: values['include-tests'] === true,
+    relayout: values.relayout === true,
+    uiDir: defaultUiDir,
+    log: (l) => io.err(`${l}\n`),
+  });
+  io.out(`blueprint  watching ${root}\n`);
+  io.out(`blueprint  ${srv.url}\n`);
+  if (!values['no-open'] && canOpenBrowser()) await openBrowser(srv.url);
+
+  // run until ctrl-c
+  await new Promise<void>((resolve) => {
+    const stop = () => resolve();
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  });
+  await srv.close();
+  return 0;
+}
+
+interface ServerInfo {
+  pid: number;
+  port: number;
+  token: string;
+  root: string;
+  startedAt: string;
+}
+
+async function statusCommand(root: string, asJson: boolean, io: IO): Promise<number> {
+  const out = (v: unknown, text: string) => io.out(asJson ? `${JSON.stringify(v, null, 2)}\n` : `${text}\n`);
+  let info: ServerInfo;
+  try {
+    info = JSON.parse(fs.readFileSync(serverFile(root), 'utf8')) as ServerInfo;
+    process.kill(info.pid, 0); // throws when the process is gone
+  } catch {
+    out({ running: false, root }, 'blueprint  not running here');
+    return 1;
+  }
+  try {
+    const r = await fetch(`http://127.0.0.1:${info.port}/api/status`, { headers: { 'x-blueprint-token': info.token } });
+    const s = (await r.json()) as Record<string, unknown>;
+    out(
+      { running: true, url: `http://127.0.0.1:${info.port}/?t=${info.token}`, ...s },
+      `blueprint  running, pid ${info.pid}, http://127.0.0.1:${info.port}/ (${String(s.files)} files, baseline ${String(s.baseline)})`,
+    );
+    return 0;
+  } catch {
+    out({ running: false, root, stale: true }, 'blueprint  stale server file, nothing is answering');
+    return 1;
+  }
 }
