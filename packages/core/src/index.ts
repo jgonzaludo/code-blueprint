@@ -6,6 +6,18 @@ export * from './types.js';
 export { parseTree, loadCompilerOptions, defaultOptions, isTestPath, isSourcePath, type ParseOptions } from './parse.js';
 export { buildFileTree, type CallNode, type FileTree, type TreeOptions } from './callTree.js';
 export { buildGraph, lcs } from './diff.js';
+export {
+  baselineOf,
+  checkPlan,
+  edgeKey,
+  planGraph,
+  type CheckEdge,
+  type CheckKind,
+  type CheckResult,
+  type PlanBaseline,
+  type PlanClaim,
+  type PlanFile,
+} from './plan.js';
 
 // parse two trees on disk and diff them (before = baseline, after = new)
 export function parseAndDiff(beforeRoot: string, afterRoot: string, opts: { before?: ParseOptions; after?: ParseOptions } = {}): Graph {
