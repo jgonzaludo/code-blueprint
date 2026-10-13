@@ -26,7 +26,15 @@ blueprint plan apply refund-support
 blueprint check              # 9 of 10 planned arrows confirmed, one not in the code
 ```
 
-A draft is parsed as an overlay on your real files and never touches them until you apply. Arrows the parser reads from draft code are dashed green, claims (calls the plan says will exist but no draft contains) are dashed with a hollow head, and after applying each one is confirmed, missing ("not in the code") or unplanned. Hooking this up to Claude Code so it happens without manual steps is the next piece.
+A draft is parsed as an overlay on your real files and never touches them until you apply. Arrows the parser reads from draft code are dashed green, claims (calls the plan says will exist but no draft contains) are dashed with a hollow head, and after applying each one is confirmed, missing ("not in the code") or unplanned. 
+## Use it from Claude Code
+
+```bash
+blueprint skill install            # for you, into ~/.claude/skills
+blueprint skill install --project  # for this repo only, so a team shares it
+```
+
+Then in a new Claude Code session just ask. "What does src/orders.ts do?" runs `print` and answers from the parser's output. "Add refund support" makes Claude start the map, draft the feature as a plan, wait for your go, apply it and report the check honestly: how many planned arrows were confirmed, which weren't in the code, and what it added that nobody planned. The skill file is [skill/claude-code/SKILL.md](skill/claude-code/SKILL.md).
 
 The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
 
