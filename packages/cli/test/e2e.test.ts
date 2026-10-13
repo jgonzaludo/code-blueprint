@@ -154,3 +154,67 @@ run('map page in a real browser', () => {
     await s.ctx.close();
   });
 });
+
+run('plan view in a real browser', () => {
+  let root2 = '';
+  let srv2: RunningServer | null = null;
+
+  beforeAll(async () => {
+    if (!browser) return;
+    const { baselineOf, parseTree } = await import('@blueprint/core');
+    const { addClaim, addDraft, createPlan } = await import('../src/plans.js');
+    root2 = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-e2e-plan-'));
+    fs.cpSync(path.join(repo, 'examples/refund-demo/before'), root2, { recursive: true });
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root2, stdio: 'pipe' });
+    git('init', '-q', '-b', 'main');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'base');
+    createPlan(root2, 'refund-support', 'refund support', baselineOf(parseTree(root2, { diagnostics: false })));
+    for (const f of ['src/refunds.ts', 'src/api/refundHandler.ts', 'src/orders.ts']) {
+      addDraft(root2, 'refund-support', f, fs.readFileSync(path.join(repo, 'examples/refund-demo/after', f), 'utf8'));
+    }
+    addClaim(root2, 'refund-support', { from: 'src/api/refundHandler.ts::refundHandler', to: 'src/audit/log.ts::recordAudit', note: 'audit first' });
+    srv2 = await startServer({ root: root2, port: 0, baseline: 'HEAD', includeTests: false, uiDir, watch: true });
+  }, 60_000);
+
+  afterAll(async () => {
+    await srv2?.close();
+    if (root2) fs.rmSync(root2, { recursive: true, force: true });
+  });
+
+  it('leads with the plan, then shows 9 of 10 once it is applied', async () => {
+    if (!browser || !srv2) return;
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.goto(srv2.url);
+    await page.waitForSelector('.bp-blk');
+
+    // plan view: switch is visible, new files sit in a band, nothing is on disk yet
+    expect(await page.locator('#bp-modes').isVisible()).toBe(true);
+    expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
+    expect(await page.locator('.bp-band').textContent()).toBe('New files, above the map');
+    expect(await page.locator('.bp-file.bp-s-new').count()).toBe(2);
+    expect(await page.locator('#bp-changes').innerText()).toContain('refundHandler.ts');
+    expect(fs.existsSync(path.join(root2, 'src/refunds.ts'))).toBe(false);
+    await page.screenshot({ path: path.join(outDir, 'plan-view.png') });
+
+    // before applying, the check has nothing to confirm
+    await page.locator('#bp-modes button[data-m="applied"]').click();
+    expect(await page.locator('#bp-changes').innerText()).toContain('0 of 10 proposed arrows confirmed');
+
+    // apply the plan on disk while the page is open
+    const { applyPlan } = await import('../src/plans.js');
+    applyPlan(root2, 'refund-support');
+    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('9 of 10 proposed arrows confirmed'), null, { timeout: 10_000 });
+    const text = await page.locator('#bp-changes').innerText();
+    expect(text).toContain('Not in the code');
+    expect(text).toContain('refundHandler to recordAudit');
+    await page.screenshot({ path: path.join(outDir, 'applied-check.png') });
+
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+});

@@ -34,7 +34,7 @@ Name work by what it is (`plan-check`, `live-map`, `claude-skill`), never by a m
 
 ## Branches and PRs
 
-- Work happens on short-lived branches named `<type>/<short-name>` (`feat/plan-check`, `fix/card-overlap`), merged into `dev`, and `dev` goes to `main` by PR.
+- Work happens on short-lived branches named `<type>/<short-name>` (`feat/plan-check`, `fix/card-overlap`), merged into `main` by PR.
 - PR titles follow the same Conventional Commits format as commits.
 - Merge with a merge commit so the small logical commits are kept.
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { baselineOf, checkPlan, isTestPath, parseTree, planGraph, type ParsedTree, type PlanFile } from '@blueprint/core';
 import {
-  PlanError, addClaim, addDraft, applyPlan, checkRel, createPlan, listPlans, readPlan, removeFile, resolveId,
+  PlanError, addClaim, addDraft, applyPlan, baseOverlay, checkRel, createPlan, listPlans, readPlan, removeFile, resolveId,
 } from './plans.js';
 import { renderCheck, renderPlanList, renderPlanShow } from './planText.js';
 import type { IO } from './run.js';
@@ -16,10 +16,16 @@ interface Opts {
 }
 
 // disk as it is now, and disk with the draft laid over it
-function trees(root: string, plan: PlanFile, overlay: Map<string, string | null>, includeTests: boolean): { disk: ParsedTree; draft: ParsedTree } {
+function trees(root: string, plan: PlanFile, overlay: Map<string, string | null>, includeTests: boolean): { disk: ParsedTree; draft: ParsedTree; base: ParsedTree } {
   const planned = new Set([...plan.files, ...plan.delete]);
   const exclude = includeTests ? undefined : (rel: string) => isTestPath(rel) && !planned.has(rel);
-  return { disk: parseTree(root, { exclude, diagnostics: false }), draft: parseTree(root, { overlay, exclude, diagnostics: false }) };
+  const bo = baseOverlay(root, plan);
+  return {
+    disk: parseTree(root, { exclude, diagnostics: false }),
+    draft: parseTree(root, { overlay, exclude, diagnostics: false }),
+    // the code as it was before the plan, so show stays right after the plan is applied
+    base: bo.size ? parseTree(root, { overlay: bo, exclude, diagnostics: false }) : parseTree(root, { exclude, diagnostics: false }),
+  };
 }
 
 // "applied" means every drafted file on disk already has the draft's exact contents
@@ -81,8 +87,8 @@ export async function planCommand(root: string, args: string[], o: Opts, io: IO)
       case 'show': {
         const id = resolveId(root, a);
         const { plan, overlay } = readPlan(root, id);
-        const { disk, draft } = trees(root, plan, overlay, o.includeTests);
-        const g = planGraph(disk, draft, plan);
+        const { base, draft } = trees(root, plan, overlay, o.includeTests);
+        const g = planGraph(base, draft, plan);
         const state = isApplied(root, plan, overlay) ? 'applied' : 'proposed';
         if (o.json) {
           const changed = Object.values(g.blocks).filter((x) => x.status !== 'same' && x.kind !== 'imports');

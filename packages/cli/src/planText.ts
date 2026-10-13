@@ -42,7 +42,7 @@ export function renderPlanShow(g: Graph, plan: PlanFile, state: 'proposed' | 'ap
       out.push(`+ ${f}  NEW`);
       for (const b of blocksOf(f)) {
         const c = callees(b.id);
-        out.push(`    + ${pad(b.name, width)}${c ? `  -> ${c}` : ''}`);
+        out.push(`    + ${c ? `${pad(b.name, width)}  -> ${c}` : b.name}`);
       }
     } else if (s === 'del') {
       out.push(`- ${f}  DELETED`);
@@ -73,7 +73,10 @@ export function renderPlanShow(g: Graph, plan: PlanFile, state: 'proposed' | 'ap
   const claims = g.edges.filter((e) => e.source === 'claim').length;
   const proposed = g.edges.filter((e) => e.status === 'new' && e.source === 'parser').length;
   out.push('');
-  out.push(`${proposed} arrows come from the draft code (parser facts), ${claims} are claims (not in any draft file).`);
+  out.push(
+    `${proposed} ${proposed === 1 ? 'arrow comes' : 'arrows come'} from the draft code (parser facts), ` +
+      `${claims} ${claims === 1 ? 'is a claim' : 'are claims'} (not in any draft file).`,
+  );
   return out.join('\n');
 }
 

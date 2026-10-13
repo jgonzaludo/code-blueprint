@@ -84,6 +84,17 @@ export function readPlan(root: string, id: string): { plan: PlanFile; baseline: 
   return { plan, baseline, overlay };
 }
 
+// the pre-plan state of every file the plan touches: captured contents, or null where it didn't exist
+export function baseOverlay(root: string, plan: PlanFile): Map<string, string | null> {
+  const o = new Map<string, string | null>();
+  for (const rel of [...plan.files, ...plan.delete]) {
+    const f = path.join(planDir(root, plan.id), 'base', rel);
+    if (fs.existsSync(f)) o.set(rel, fs.readFileSync(f, 'utf8'));
+    else if (plan.baseAbsent?.includes(rel)) o.set(rel, null);
+  }
+  return o;
+}
+
 export function createPlan(root: string, id: string, title: string, baseline: PlanBaseline): PlanFile {
   checkId(id);
   if (fs.existsSync(path.join(planDir(root, id), 'plan.json'))) throw new PlanError(`plan '${id}' already exists`);
@@ -102,8 +113,25 @@ function update(root: string, id: string, fn: (p: PlanFile) => void): PlanFile {
   return plan;
 }
 
+// remember what a file looked like before the plan touched it, once
+function captureBase(root: string, id: string, rel: string): void {
+  const dest = path.join(planDir(root, id), 'base', rel);
+  const plan = readJson<PlanFile>(path.join(planDir(root, id), 'plan.json'));
+  if (fs.existsSync(dest) || plan.baseAbsent?.includes(rel)) return;
+  const src = path.join(root, rel);
+  if (fs.existsSync(src) && fs.statSync(src).isFile()) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+  } else {
+    update(root, id, (p) => {
+      p.baseAbsent = [...(p.baseAbsent ?? []), rel];
+    });
+  }
+}
+
 export function addDraft(root: string, id: string, rel: string, content: string): PlanFile {
   const r = checkRel(root, rel);
+  captureBase(root, id, r);
   const dest = path.join(planDir(root, id), 'files', r);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, content);
@@ -115,6 +143,7 @@ export function addDraft(root: string, id: string, rel: string, content: string)
 
 export function removeFile(root: string, id: string, rel: string): PlanFile {
   const r = checkRel(root, rel);
+  captureBase(root, id, r);
   fs.rmSync(path.join(planDir(root, id), 'files', r), { force: true });
   return update(root, id, (p) => {
     p.files = p.files.filter((f) => f !== r);

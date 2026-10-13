@@ -13,7 +13,22 @@ Its main job is planning features with Claude. The plan lands on the map as an o
 - `blueprint` (or `blueprint watch`): serve a live map of your project on `127.0.0.1`, zoomable from files down to exact code, with arrows from each call line to the thing it calls. It re-parses on save and shows what changed against your last commit.
 - `blueprint print <file>`: the same facts as a text tree, or json, for use in a terminal or in chat.
 
-You can use both any time, for any question about your code. They do not need a feature plan. The plan-then-check loop (draft a feature, review it on the map, then check what got built) is what comes next, not built yet. The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
+You can use both any time, for any question about your code. They do not need a feature plan.
+
+The plan-then-check loop is built too, from the terminal and on the map:
+
+```bash
+blueprint plan new refund-support --title "refund support"
+blueprint plan add refund-support src/refunds.ts --from /tmp/refunds.ts    # or pipe the draft on stdin
+blueprint plan claim refund-support src/api/h.ts::handler src/audit/log.ts::recordAudit
+blueprint plan show          # new files, exact changed lines, proposed arrows
+blueprint plan apply refund-support
+blueprint check              # 9 of 10 planned arrows confirmed, one not in the code
+```
+
+A draft is parsed as an overlay on your real files and never touches them until you apply. Arrows the parser reads from draft code are dashed green, claims (calls the plan says will exist but no draft contains) are dashed with a hollow head, and after applying each one is confirmed, missing ("not in the code") or unplanned. Hooking this up to Claude Code so it happens without manual steps is the next piece.
+
+The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 Work happens on the `dev` branch.
 

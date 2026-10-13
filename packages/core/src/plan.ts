@@ -17,6 +17,9 @@ export interface PlanFile {
   files: string[]; // repo-relative, drafted files (new or changed)
   delete: string[]; // repo-relative, files the plan removes
   claims: PlanClaim[];
+  // planned files that did not exist when they were added. the originals of the others are
+  // captured under base/ so the plan can always be shown against the pre-plan code.
+  baseAbsent?: string[];
 }
 
 // what the code looked like when the plan was started. lets check tell "the plan's new arrows"
@@ -143,4 +146,38 @@ export function checkPlan(applied: ParsedTree, draft: ParsedTree, plan: PlanFile
     edges: out,
     blocks: { missing: missing.sort(), extra: extra.sort() },
   };
+}
+
+// the "after applying" view: pre-plan code against the code on disk now, with each arrow marked
+// by what the check found. planned arrows the code doesn't have are added back as missing.
+export function appliedGraph(base: ParsedTree, disk: ParsedTree, plan: PlanFile, check: CheckResult): Graph {
+  const graph = buildGraph(base, disk);
+  for (const e of graph.edges) e.source = 'parser';
+  const marks = new Map<string, CheckEdge>();
+  for (const c of check.edges) marks.set(`${c.from}|${c.to}|${c.callText}`, c);
+  for (const e of graph.edges) {
+    const m = marks.get(`${e.from}|${e.to}|${e.callText}`);
+    if (m && m.source === 'parser') e.check = m.check;
+  }
+  // claims the code satisfied: mark the matching parser arrow
+  for (const c of check.edges) {
+    if (c.source !== 'claim' || c.check !== 'confirmed') continue;
+    for (const e of graph.edges) if (e.from === c.from && e.to === c.to && e.status !== 'del') e.check = 'confirmed';
+  }
+  for (const c of check.edges) {
+    if (c.check !== 'missing') continue;
+    if (!graph.blocks[c.from] || !graph.blocks[c.to]) continue;
+    graph.edges.push({
+      from: c.from, to: c.to, callText: c.callText, targetText: '', status: 'new',
+      source: c.source, check: 'missing', callLine: c.callLine, targetLine: c.targetLine,
+    });
+  }
+  graph.plan = {
+    id: plan.id,
+    title: plan.title,
+    state: 'checked',
+    claims: graph.edges.filter((e) => e.source === 'claim'),
+    summary: { confirmed: check.summary.confirmed, missing: check.summary.missing, unplanned: check.summary.unplanned },
+  };
+  return graph;
 }

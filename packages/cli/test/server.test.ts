@@ -176,3 +176,47 @@ describe('live updates', () => {
     expect(events).toContain(2);
   });
 });
+
+describe('plans over the api', () => {
+  it('serves the newest plan with its check and a band above the map', async () => {
+    const { srv, base } = await boot();
+    const state0 = (await (await fetch(`${base}/api/state?t=${srv.token}`)).json()) as { plan: unknown; plans: unknown[] };
+    expect(state0.plan).toBeNull();
+    expect(state0.plans).toEqual([]);
+  });
+
+  it('picks up a plan written while it is watching', async () => {
+    const { srv, root, base } = await boot();
+    const { baselineOf, parseTree } = await import('@blueprint/core');
+    const { addClaim, addDraft, createPlan } = await import('../src/plans.js');
+    createPlan(root, 'extra', 'add an extra fn', baselineOf(parseTree(root, { diagnostics: false })));
+    addDraft(root, 'extra', 'src/extra.ts', "import { b } from './b';\nexport function extra() {\n  return b() + 1;\n}\n");
+    addClaim(root, 'extra', { from: 'src/extra.ts::extra', to: 'src/a.ts::a', note: 'also call a' });
+
+    const t0 = Date.now();
+    while ((await (await fetch(`${base}/api/state?t=${srv.token}`)).json() as { plan: unknown }).plan === null && Date.now() - t0 < 6000) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const s = (await (await fetch(`${base}/api/state?t=${srv.token}`)).json()) as {
+      plans: Array<{ id: string }>;
+      plan: {
+        id: string;
+        state: string;
+        planGraph: { fstat: Record<string, string>; edges: Array<{ source: string; status: string }> };
+        check: { summary: { confirmed: number; missing: number; planned: number } };
+        positions: Record<string, { x: number; y: number }>;
+      };
+      positions: Record<string, { x: number; y: number }>;
+    };
+    expect(s.plans.map((p) => p.id)).toEqual(['extra']);
+    expect(s.plan.state).toBe('proposed');
+    expect(s.plan.planGraph.fstat['src/extra.ts']).toBe('new');
+    expect(s.plan.planGraph.edges.filter((e) => e.source === 'claim')).toHaveLength(1);
+    // nothing is applied yet, so both the arrow and the claim are missing
+    expect(s.plan.check.summary).toMatchObject({ confirmed: 0, planned: 2 });
+    // the new file sits above everything already on the map, and existing files didn't move
+    const ys = Object.entries(s.positions).map(([, p]) => p.y);
+    expect((s.plan.positions['src/extra.ts'] as { y: number }).y).toBeLessThan(Math.min(...ys));
+    expect(s.plan.positions['src/a.ts']).toEqual(s.positions['src/a.ts']);
+  });
+});

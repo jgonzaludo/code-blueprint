@@ -142,3 +142,32 @@ button:focus-visible, .bp-blk:focus-visible, .bp-vp:focus-visible { outline: 2px
 .bp-chip.bp-nw { border-color: color-mix(in srgb, var(--add) 55%, var(--line)); }
 .bp-none { color: var(--muted); font-size: 12.5px; }
 .bp-ph { color: var(--muted); }
+
+/* modes */
+.bp-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.bp-seg[hidden], .bp-planname[hidden] { display: none; }
+.bp-seg button { border: 0; background: transparent; padding: 5px 12px; font-size: 13px; font-weight: 500; border-right: 1px solid var(--line); }
+.bp-seg button:last-child { border-right: 0; }
+.bp-seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.bp-planname { color: var(--muted); font-size: 12.5px; }
+.bp-band { position: absolute; font-size: 38px; font-weight: 700; color: var(--add); letter-spacing: -.01em; white-space: nowrap; pointer-events: none; }
+.bp-map .bp-band { font-size: 56px; }
+.bp-mode-plan .bp-blk.bp-s-new { border-style: dashed; background: color-mix(in srgb, var(--add) 7%, var(--surface)); }
+.bp-mode-plan .bp-ed.bp-new, .bp-ed.bp-proposed { stroke-dasharray: 7 5; }
+.bp-ed.bp-claim { stroke: var(--add); stroke-dasharray: 2 6; opacity: .9; }
+.bp-edot.bp-claim { fill: transparent; stroke: var(--add); }
+.bp-ed.bp-confirmed { stroke: var(--add); stroke-dasharray: none; }
+.bp-ed.bp-missing { stroke: var(--del); stroke-dasharray: 6 5; opacity: 1; stroke-width: 2.4; }
+.bp-edot.bp-missing { fill: var(--del); }
+.bp-ed.bp-unplanned { stroke: var(--mod); stroke-width: 2.4; }
+.bp-edot.bp-unplanned { fill: var(--mod); }
+.bp-mk-h { fill: var(--canvas); stroke: var(--add); stroke-width: 1.2; } .bp-mk-a { fill: var(--mod); }
+.bp-elab { font-size: 12px; font-weight: 600; fill: var(--del); paint-order: stroke; stroke: var(--canvas); stroke-width: 4px; }
+.bp-map .bp-elab { font-size: 30px; stroke-width: 8px; }
+.bp-badge.bp-b-use { background: var(--accent-soft); color: var(--accent); }
+.bp-m.bp-u { color: var(--accent); }
+.bp-rec { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; background: var(--surface-2); line-height: 1.5; }
+.bp-rec ul { margin: 8px 0 0; padding-left: 18px; }
+.bp-rec code { font-family: var(--font-mono); font-size: 11.5px; }
+.bp-rec.bp-bad { border-color: color-mix(in srgb, var(--del) 55%, var(--line)); }
+.bp-rec.bp-good { border-color: color-mix(in srgb, var(--add) 55%, var(--line)); }

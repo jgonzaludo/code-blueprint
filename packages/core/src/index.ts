@@ -7,6 +7,7 @@ export { parseTree, loadCompilerOptions, defaultOptions, isTestPath, isSourcePat
 export { buildFileTree, type CallNode, type FileTree, type TreeOptions } from './callTree.js';
 export { buildGraph, lcs } from './diff.js';
 export {
+  appliedGraph,
   baselineOf,
   checkPlan,
   edgeKey,

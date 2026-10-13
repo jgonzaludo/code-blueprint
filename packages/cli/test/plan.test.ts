@@ -59,7 +59,7 @@ describe('plan then check, end to end', () => {
     expect(r.out).toContain('~ src/orders.ts  MODIFIED, 2 blocks');
     expect(r.out).toContain('~ OrderStatus');
     expect(r.out).toContain('used by the new code, unchanged:');
-    expect(r.out).toContain('9 arrows come from the draft code (parser facts), 1 are claims');
+    expect(r.out).toContain('9 arrows come from the draft code (parser facts), 1 is a claim');
 
     // real files untouched, and no refunds.ts yet
     expect(fs.readFileSync(path.join(d, 'src/orders.ts'), 'utf8')).toBe(before);
