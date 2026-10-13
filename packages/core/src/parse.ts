@@ -27,6 +27,8 @@ export interface ParseOptions {
   compilerOptions?: ts.CompilerOptions;
   // drop files by repo-relative path (e.g. tests). nothing is excluded by default.
   exclude?: (rel: string) => boolean;
+  // ignore what's on disk and parse only the overlay. used for baselines read from git.
+  overlayOnly?: boolean;
   // count type errors (default true). off skips a full semantic pass, handy for hot paths.
   diagnostics?: boolean;
 }
@@ -40,7 +42,8 @@ export const isTestPath = (rel: string): boolean =>
   /(^|\/)(test|tests|__tests__)\//.test(rel) || /\.(test|spec)(-d)?\.[cm]?[jt]sx?$/.test(rel);
 
 const norm = (p: string) => p.split(path.sep).join('/');
-const isSource = (f: string) => SRC_EXT.test(f) && !/\.d\.(ts|mts|cts)$/.test(f);
+export const isSourcePath = (f: string): boolean => SRC_EXT.test(f) && !/\.d\.(ts|mts|cts)$/.test(f);
+const isSource = isSourcePath;
 
 function walk(dir: string): string[] {
   let entries: fs.Dirent[];
@@ -95,11 +98,12 @@ export function parseTree(rootDir: string, opts: ParseOptions = {}): ParsedTree 
 
   // disk files, minus deleted, plus drafted
   const exclude = opts.exclude;
-  const fileList = new Set(walk(root).map(norm).filter((f) => !exclude?.(f.slice(root.length + 1))));
+  const fileList = new Set(opts.overlayOnly ? [] : walk(root).map(norm));
   for (const [abs, content] of overlay) {
     if (content === null) fileList.delete(abs);
     else if (isSource(abs)) fileList.add(abs);
   }
+  for (const f of [...fileList]) if (exclude?.(f.slice(root.length + 1))) fileList.delete(f);
 
   const base = ts.createCompilerHost(options, true);
   const host: ts.CompilerHost = {
