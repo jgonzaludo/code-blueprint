@@ -1,0 +1,23 @@
+{
+  "name": "code-blueprint",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "a zoomable map of real code, plan features with Claude then check what got built",
+  "license": "MIT",
+  "packageManager": "pnpm@12.11.2",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.19.43",
+    "eslint": "^9.39.5",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^4.1.11"
+  }
+}
