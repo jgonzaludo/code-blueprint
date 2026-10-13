@@ -1,0 +1,137 @@
+<title>Plan Map in VS Code</title>
+<style>
+/*PM_CSS*/
+/*TERM_CSS*/
+.vsc { --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935; --ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550; --blue: #4cb4f0; --purple: #a98cff; --teal: #4ad8c8; --orange: #ff9d57; --add: #4fd88a; --add-bg: rgba(79, 216, 138, .14); --del: #ff7b72; --del-bg: rgba(255, 123, 114, .14); --mod: #e8c75a; --mod-bg: rgba(232, 199, 90, .16); --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff; --v-bg: #1e1e1e; --v-side: #252526; --v-act: #333333; --v-tab: #2d2d2d; --v-ink: #cccccc; --v-dim: #858585; --v-line: #3c3c3c; --v-sel: #37373d; --v-status: #007acc;
+	background: var(--v-bg); color: var(--v-ink); border-radius: 10px; overflow: hidden; border: 1px solid var(--v-line); box-shadow: var(--shadow); font-size: 12.5px; min-width: 0; }
+.vt { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #323233; color: var(--v-dim); font-size: 12px; }
+.vt .t { flex: 1; text-align: center; }
+.vmain { display: grid; grid-template-columns: 40px 190px minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: minmax(0, 1fr); height: 700px; overflow: hidden; }
+.act { background: var(--v-act); display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 12px; }
+.act i { width: 18px; height: 18px; border: 2px solid var(--v-dim); border-radius: 4px; display: block; }
+.act i.on { border-color: #fff; }
+.exp { background: var(--v-side); overflow: auto; padding-bottom: 10px; }
+.exp h5 { margin: 0; padding: 8px 12px; font-size: 11px; letter-spacing: .08em; font-weight: 500; color: var(--v-dim); }
+.fi { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; color: var(--v-ink); text-align: left; padding: 3px 8px; font-size: 12.5px; }
+.fi:hover { background: var(--v-sel); } .fi.on { background: #094771; }
+.fi .b { margin-left: auto; font-family: var(--font-mono); font-size: 11px; }
+.fi .b.A { color: #73c991; } .fi .b.M { color: #e2c08d; } .fi .b.U { color: #73c991; }
+.mode-base .fi.isnew { display: none; }
+.dir { padding: 3px 8px; color: var(--v-ink); } .ind { padding-left: 22px; }
+.edit { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--v-line); }
+.tabs { display: flex; background: var(--v-tab); overflow-x: auto; }
+.tab { border: 0; background: var(--v-tab); color: var(--v-dim); padding: 7px 12px; font-size: 12.5px; border-right: 1px solid var(--v-bg); white-space: nowrap; }
+.tab.on { background: var(--v-bg); color: #fff; box-shadow: inset 0 1px 0 var(--v-status); }
+.tab em { font-style: italic; color: #73c991; margin-left: 4px; }
+.banner { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid var(--v-line); background: #2a2d2e; color: var(--v-dim); }
+.banner b { color: #73c991; font-weight: 600; } .banner.bad b { color: #e2c08d; }
+.edcode { flex: 1; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 19px; padding: 4px 0 20px; }
+.cl { display: flex; white-space: pre; padding-right: 14px; min-width: max-content; }
+.cl .gn { width: 40px; text-align: right; color: #6e7681; padding-right: 8px; flex: none; user-select: none; }
+.cl .gm { width: 14px; flex: none; text-align: center; color: var(--v-dim); }
+.cl.a { background: rgba(79, 216, 138, .13); } .cl.a .gm { color: #73c991; }
+.cl.r { background: rgba(255, 123, 114, .13); color: #c9a0a0; text-decoration: line-through; text-decoration-color: rgba(255, 123, 114, .5); } .cl.r .gm { color: #ff7b72; }
+.cl.hl { outline: 1px solid #2f7fd0; outline-offset: -1px; background-image: linear-gradient(rgba(47, 127, 208, .14), rgba(47, 127, 208, .14)); }
+.cl.lens { color: var(--v-dim); font-family: var(--font-ui); font-size: 11.5px; line-height: 17px; padding-left: 54px; }
+.cl.lens button { border: 0; background: transparent; color: #8aa6c8; padding: 0; font: inherit; } .cl.lens button:hover { text-decoration: underline; }
+.cl.lens .sep { margin: 0 6px; }
+.kw { color: #569cd6; } .st { color: #ce9178; } .cm { color: #6a9955; } .nu { color: #b5cea8; }
+.plain { padding: 30px 20px; color: var(--v-dim); font-family: var(--font-ui); }
+.pan { display: flex; flex-direction: column; min-width: 0; background: var(--v-side); }
+.pan .ph2 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 6px 10px; border-bottom: 1px solid var(--v-line); font-size: 11px; letter-spacing: .06em; color: var(--v-dim); }
+.pan .ph2 b { color: var(--v-ink); font-weight: 600; }
+.pan .seg { margin-left: auto; background: var(--v-bg); border-color: var(--v-line); } .pan .seg button { color: var(--v-ink); padding: 3px 9px; font-size: 11.5px; border-color: var(--v-line); } .pan .seg button.on { background: #0e639c; color: #fff; }
+.pan .vp-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pan .vp { height: auto; flex: 1; min-height: 240px; }
+.pan .insp, .pan .sb, .pan .sh { background: var(--v-side); color: var(--v-ink); }
+.pan .lowr { max-height: 210px; overflow: auto; border-top: 1px solid var(--v-line); }
+.pan .lowr .sh { border-color: var(--v-line); }
+.sbar { display: flex; flex-wrap: wrap; gap: 4px 16px; background: var(--v-status); color: #fff; padding: 3px 12px; font-size: 12px; }
+.sbar button { border: 0; background: transparent; color: #fff; padding: 0; font-size: 12px; } .sbar button:hover { text-decoration: underline; }
+@media (max-width: 1000px) { .vmain { grid-template-columns: 40px 150px minmax(0, 1fr); height: auto; } .pan { grid-column: 1 / -1; height: 640px; } .edit { height: 520px; } }
+@media (max-width: 560px) { .vmain { grid-template-columns: 0 0 minmax(0, 1fr); } .act, .exp { display: none; } }
+</style>
+<div class="app">
+	<header class="top">
+		<h1>Plan Map in VS Code</h1>
+		<p>The map lives in a panel beside your editor. Claude's plan shows up as proposed edits in the real files and as new files on the map, and the two stay in sync. Click a block on the map and the editor jumps to its lines. Click a line and the map zooms to its block.</p>
+	</header>
+	<div class="ask"><div class="bubble"><b>Claude Code panel:</b> add refund support. Refund a paid order, put its items back in stock, and write an audit entry.</div></div>
+	<div class="vsc">
+		<div class="vt"><span class="dots"><i></i><i></i><i></i></span><span class="t" id="vtt">refunds.ts - shop - Visual Studio Code</span></div>
+		<div class="vmain mode-plan" id="vm">
+			<div class="act"><i class="on"></i><i></i><i></i><i></i></div>
+			<div class="exp" id="exp"></div>
+			<div class="edit"><div class="tabs" id="tabs"></div><div class="banner" id="bn"></div><div class="edcode" id="code"></div></div>
+			<div class="pan">
+				<div class="ph2"><b>STORYLINE</b><span>refund support</span>
+					<div class="seg" role="group" aria-label="View"><button data-m="base">Current</button><button data-m="plan" class="on">Plan</button><button data-m="applied">Applied</button></div></div>
+				<div class="vp-wrap"><div class="tools"><span class="lvl" id="lvl">Project map</span><button class="btn" id="zo" aria-label="Zoom out">-</button><button class="btn" id="zi" aria-label="Zoom in">+</button><button class="btn" id="fit">Fit</button></div>
+					<div class="vp" id="vp"><div class="world" id="world"></div></div><div class="hintbar" id="hint">Drag to pan. Ctrl or Cmd + scroll to zoom.</div></div>
+				<div class="lowr"><div class="insp" id="insp"></div><div class="sh" id="sh">Plan</div><div class="sb" id="sb"></div></div>
+			</div>
+		</div>
+		<div class="sbar"><span>main</span><button id="sbplan">Storyline: plan ready (2 new, 1 changed)</button><span style="margin-left:auto">TypeScript 5.9</span></div>
+	</div>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>Proposed lines appear in the real file with the exact diff, CodeLens shows uses and callers above each block, and the map highlights what you are looking at.</p></div>
+		<div class="note"><h3>How you open it</h3><p>Status bar item, CodeLens "Show on map", the editor title icon, or the command palette. It also opens by itself when Claude posts a plan.</p></div>
+		<div class="note"><h3>Same in Cursor and Windsurf</h3><p>It is a normal extension with a webview panel, so VS Code forks get it too.</p></div>
+	</div>
+	<p class="foot">Mock editor. Files, blocks, line numbers, diffs and arrows are computed from a real type-checked mini project, and the panel is the live Plan Map. The window chrome, chat prompt and extension details are illustrative.</p>
+</div>
+<script type="application/json" id="data">__DATA__</script>
+<script>/*PM_JS*/</script>
+<script>
+let curFile = 'src/refunds.ts', hlId = null, mm = 'plan';
+const TREE = [['dir', 'src'], ['dir', 'api', 1], ['f', 'src/api/checkout.ts', 1], ['f', 'src/api/refundHandler.ts', 1], ['dir', 'audit', 1], ['f', 'src/audit/log.ts', 1], ['dir', 'jobs', 1], ['f', 'src/jobs/retry.ts', 1], ['dir', 'utils', 1], ['f', 'src/utils/money.ts', 1], ['f', 'src/orders.ts'], ['f', 'src/refunds.ts']];
+let tabsOpen = ['src/refunds.ts', 'src/orders.ts'];
+const base = f => f.split('/').pop();
+function renderExp() {
+	$('exp').innerHTML = '<h5>EXPLORER: SHOP</h5>' + TREE.map(([t, n, ind]) => t === 'dir' ? '<div class="dir ' + (ind ? 'ind' : '') + '">v ' + n + '</div>' :
+		'<button class="fi ' + (D.fstat[n] === 'new' ? 'isnew ' : '') + (n === curFile ? 'on ' : '') + (ind ? 'ind' : '') + '" style="' + (ind ? 'padding-left:30px' : 'padding-left:22px') + '" data-f="' + n + '"><span>' + base(n) + '</span>' +
+		(mm !== 'base' && D.fstat[n] === 'new' ? '<span class="b A">' + (mm === 'plan' ? 'A?' : 'A') + '</span>' : mm !== 'base' && D.fstat[n] === 'mod' ? '<span class="b M">M</span>' : '') + '</button>').join('');
+	document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => openFile(b.dataset.f));
+}
+function openFile(f, id) {
+	curFile = f; if (!tabsOpen.includes(f)) tabsOpen.push(f);
+	renderExp(); renderTabs(); renderCode(id);
+	$('vtt').textContent = base(f) + ' - shop - Visual Studio Code';
+}
+function renderTabs() {
+	$('tabs').innerHTML = tabsOpen.filter(f => !(mm === 'base' && D.fstat[f] === 'new')).map(f => '<button class="tab ' + (f === curFile ? 'on' : '') + '" data-t="' + f + '">' + base(f) + (mm === 'plan' && D.fstat[f] === 'new' ? '<em>proposed</em>' : '') + (D.fstat[f] === 'mod' && mm !== 'base' ? ' <em style="color:#e2c08d">M</em>' : '') + '</button>').join('');
+	document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => openFile(b.dataset.t));
+}
+const blocksOf = f => Object.values(B).filter(b => b.file === f && b.kind !== 'imports');
+function lensFor(b) {
+	const ed = e => mm !== 'base' || e.status !== 'new';
+	const u = D.edges.filter(e => e.from === b.id && ed(e)).length, c = D.edges.filter(e => e.to === b.id && ed(e)).length;
+	return '<div class="cl lens"><button data-lens="' + b.id + '">' + u + ' uses<span class="sep">|</span>' + c + (c === 1 ? ' caller' : ' callers') + '<span class="sep">|</span>Show on map</button></div>';
+}
+function renderCode(scrollId) {
+	const f = curFile, st = D.fstat[f], bn = $('bn'), code = $('code');
+	if (mm === 'base' && st === 'new') { bn.textContent = 'File does not exist on disk yet.'; code.innerHTML = '<div class="plain">Switch to Plan to preview what Claude would write here.</div>'; return; }
+	bn.className = 'banner' + (mm === 'applied' && st !== 'same' ? ' bad' : '');
+	bn.innerHTML = mm === 'plan' ? (st === 'same' ? 'Unchanged by the plan.' : '<b>Proposed by Claude.</b> Not written to disk. Green lines would be added, red lines removed.')
+		: mm === 'applied' ? (st === 'same' ? 'Unchanged.' : '<b>Applied.</b> Parser re-checked this file against the plan' + (f === 'src/api/refundHandler.ts' ? '. <b style="color:#ff7b72">1 planned call is not in the code: recordAudit.</b>' : '. Arrows confirmed.')) : 'On disk.';
+	const rows = D.ftext[f].filter(x => mm !== 'base' || x.d !== '+').filter(x => mm !== 'base' ? true : x.d !== '+');
+	const starts = {}; blocksOf(f).forEach(b => { const l = b.lines.find(l => (mm === 'base' ? l.o : l.n)); if (l) starts[mm === 'base' ? l.o : l.n] = b; });
+	const hl = hlId && B[hlId] && B[hlId].file === f ? new Set(B[hlId].lines.map(l => mm === 'base' ? l.o : l.n)) : new Set();
+	let h = '';
+	rows.forEach(r => {
+		const n = r.d === '-' ? r.o : r.n ?? r.o, key = r.d === '-' ? null : (mm === 'base' ? r.o : r.n);
+		if (key && starts[key] && !r.t.startsWith('import')) h += lensFor(starts[key]);
+		const cls = mm === 'base' ? '' : r.d === '+' ? 'a' : r.d === '-' ? 'r' : '';
+		h += '<div class="cl ' + cls + (key && hl.has(key) ? ' hl' : '') + '" data-n="' + (key || '') + '"><span class="gn">' + n + '</span><span class="gm">' + (mm === 'base' ? '' : r.d === ' ' ? '' : r.d) + '</span><span class="tx">' + hl2(r.t) + '</span></div>';
+	});
+	code.innerHTML = h;
+	document.querySelectorAll('[data-lens]').forEach(b => b.onclick = () => goBlock(b.dataset.lens));
+	document.querySelectorAll('.cl[data-n]').forEach(e => e.onclick = () => { const k = +e.dataset.n; if (!k) return; const b = blocksOf(f).find(b => b.lines.some(l => (mm === 'base' ? l.o : l.n) === k)); if (b) goBlock(b.id); });
+	if (scrollId) { const e = code.querySelector('.cl.hl'); if (e) code.scrollTop = Math.max(0, e.offsetTop - 60); }
+}
+const hl2 = s => hl(s);
+window.pmOnSelect = id => { hlId = id; if (!id) { renderCode(); return; } const f = B[id].file; if (f !== curFile) openFile(f, id); else renderCode(id); };
+window.pmOnMode = (m) => { mm = m; $('vm').className = 'vmain mode-' + m; if (D.fstat[curFile] === 'new' && m === 'base') { curFile = 'src/orders.ts'; } renderExp(); renderTabs(); renderCode(hlId); };
+$('sbplan').onclick = () => { setMode('plan'); fitAll(600); };
+mm = 'base'; setMode('plan'); fitAll(0); addEventListener('load', () => fitAll(0));
+</script>

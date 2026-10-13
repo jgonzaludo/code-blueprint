@@ -1,0 +1,256 @@
+<title>Storyline in the Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: the command that starts it, then the browser tab it opens.
+   The page is the same canvas as everywhere else, plus a live indicator that reacts when the file is saved. */
+:root {
+	--bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f6f9; --canvas: #f7f9fb; --dot: #d3dbe4;
+	--ink: #14202c; --ink-2: #38485a; --muted: #5b6b7b; --line: #cdd6df;
+	--accent: #1b6fc4; --accent-soft: #dbe9f8;
+	--blue: #1b86c9; --teal: #168a80; --purple: #7b4fd0; --orange: #c4570b; --live: #1e8a4c;
+	--syn-kw: #a02f9c; --syn-str: #b4530b; --syn-cm: #6b7b8a; --syn-num: #1a6fb5;
+	--shadow: 0 1px 2px rgba(20, 32, 44, .08), 0 6px 18px rgba(20, 32, 44, .06);
+	/* terminal surfaces stay dark in both themes, so they are their own tokens */
+	--t-bg: #14181d; --t-bar: #1d232a; --t-ink: #d8e0e8; --t-dim: #8392a1; --t-line: #2c353f;
+	--t-blue: #6ab8ff; --t-green: #6fd58d; --t-red: #ff7b72; --t-orange: #ffa657; --t-purple: #c4a2ff; --t-teal: #5fd6c8; --t-yellow: #e8c75a;
+	--font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+		--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+		--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57; --live: #4fd88a;
+		--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+		--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+	--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+	--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57; --live: #4fd88a;
+	--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+	--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 44px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.top h1 { margin: 0; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; font-weight: 700; text-wrap: balance; }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 72ch; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.on { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 820px) { .notes { grid-template-columns: minmax(0, 1fr); } }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.note h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.note p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.foot { color: var(--muted); font-size: 12px; max-width: 90ch; }
+.kw { color: var(--syn-kw); } .st { color: var(--syn-str); } .cm { color: var(--syn-cm); } .nu { color: var(--syn-num); }
+
+/* canvas */
+.cv { position: relative; min-width: 0; background-color: var(--canvas); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; overflow-x: auto; overflow-y: hidden; }
+.fit { position: relative; }
+.world { position: absolute; left: 0; top: 0; width: 840px; height: 470px; transform-origin: 0 0; }
+.arrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 0; }
+.arr { fill: none; stroke: var(--blue); stroke-width: 1.7; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: .9; transition: stroke-dashoffset .8s ease, opacity .3s; }
+.arr.on { stroke-dashoffset: 0; }
+.arr.dim { opacity: .14; }
+.src { fill: var(--blue); }
+.src.dim { opacity: .14; }
+.mk { fill: var(--blue); }
+.blk { position: absolute; z-index: 1; background: var(--surface); border: 1.5px solid var(--k); border-radius: 8px; overflow: hidden; cursor: pointer; transition: opacity .3s, box-shadow .25s; }
+.blk.fn { --k: var(--blue); } .blk.cls { --k: var(--purple); } .blk.ext { --k: var(--orange); border-style: dashed; }
+.blk.dim { opacity: .35; }
+.blk.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 35%, transparent); }
+.bh { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: color-mix(in srgb, var(--k) 12%, var(--surface)); }
+.bh .bk { font-family: var(--font-mono); font-size: 9.5px; color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); border-radius: 4px; padding: 0 4px; line-height: 14px; }
+.bh .bn { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bo { height: 20px; line-height: 20px; padding: 0 8px; font-family: var(--font-mono); font-size: 10px; color: var(--orange); border-top: 1px dashed color-mix(in srgb, var(--k) 50%, transparent); background: color-mix(in srgb, var(--k) 7%, var(--surface)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb { padding: 6px 0; font-family: var(--font-mono); font-size: 10px; line-height: 14px; }
+.bb div { white-space: pre; padding-inline: 8px; height: 14px; overflow: hidden; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 2px 7px; }
+.chip i { font-style: normal; color: var(--muted); }
+.chip.x { border-style: dashed; border-color: var(--orange); }
+.chip.none { color: var(--muted); border-style: dotted; }
+@media (prefers-reduced-motion: reduce) { .arr, .blk { transition: none !important; } }
+
+.cmd { background: var(--t-bg); color: var(--t-ink); border: 1px solid var(--t-line); border-radius: 10px; padding: 10px 14px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-start; justify-content: space-between; }
+.cmd pre { margin: 0; font: inherit; white-space: pre-wrap; min-width: 0; }
+.cmd .d { color: var(--t-dim); } .cmd .g { color: var(--t-green); } .cmd .u { color: var(--t-blue); text-decoration: underline; text-underline-offset: 2px; }
+.copy { background: var(--t-bar); border: 1px solid var(--t-line); color: var(--t-ink); border-radius: 6px; padding: 3px 10px; font: inherit; font-size: 12px; }
+.br { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
+.chrome { background: var(--surface-2); border-bottom: 1px solid var(--line); padding: 8px 12px 8px; display: grid; gap: 8px; }
+.btabs { display: flex; gap: 6px; } .btab { font-size: 12px; padding: 4px 12px; border-radius: 8px 8px 0 0; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; }
+.url { font-family: var(--font-mono); font-size: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page { display: grid; grid-template-columns: minmax(0, 1fr) 270px; min-height: 520px; }
+@media (max-width: 860px) { .page { grid-template-columns: minmax(0, 1fr); } }
+.canv { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+@media (max-width: 860px) { .canv { border-right: 0; border-bottom: 1px solid var(--line); } }
+.ptop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.ptop .f { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--live); }
+.live.flash::before { animation: pulse 1s ease-in-out 2; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--live) 30%, transparent); } }
+.ptop .sp { flex: 1; }
+.side { padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--surface); min-width: 0; }
+.side h4 { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.sh { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .sh .bk { font-family: var(--font-mono); font-size: 10.5px; color: var(--blue); border: 1px solid color-mix(in srgb, var(--blue) 40%, transparent); border-radius: 4px; padding: 0 5px; }
+.sh .nm { font-family: var(--font-mono); font-weight: 600; font-size: 13.5px; } .loc { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.ph { color: var(--muted); font-size: 13px; }
+.blk.chg { box-shadow: 0 0 0 3px color-mix(in srgb, #d49b00 55%, transparent); }
+.blk.chg::after { content: "changed"; position: absolute; right: 8px; top: 5px; font-family: var(--font-mono); font-size: 9.5px; color: #8a6400; background: #ffe9a8; border-radius: 4px; padding: 0 5px; line-height: 16px; }
+.toast { font-size: 12.5px; color: var(--ink-2); min-height: 1.4em; }
+</style>
+
+<div class="app">
+	<header class="top">
+		<h1>Storyline in the Browser</h1>
+		<p>The version that works with any editor or none. One command starts a tiny local server and opens a tab. Save the file and the tab updates.</p>
+	</header>
+	<div class="cmd">
+		<pre><span class="d">$</span> npx storyline src/orders.ts
+<span class="g">✓</span> parsed src/orders.ts <span class="d">(11 blocks, 2 from other files)</span>
+<span class="g">✓</span> watching for changes   <span class="u">http://localhost:4173/?file=src/orders.ts</span></pre>
+		<button class="copy" id="copy">Copy command</button>
+	</div>
+	<div class="br">
+		<div class="chrome"><div class="btabs"><span class="btab">Storyline: orders.ts</span></div><div class="url">localhost:4173/?file=src/orders.ts</div></div>
+		<div class="page">
+			<div class="canv">
+				<div class="ptop"><span class="f">src/orders.ts</span><span class="live" id="live">live, watching file</span><span class="sp"></span>
+					<button class="btn" id="save">Simulate a save in your editor</button></div>
+				<div class="cv" id="cv"><div class="fit" id="fit"><div class="world" id="world"></div></div></div>
+			</div>
+			<div class="side">
+				<div id="insp"><div class="ph">Select a block to see where it comes up and how it is used.</div></div>
+				<div class="toast" id="toast"></div>
+			</div>
+		</div>
+	</div>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>The full canvas anywhere: Vim, JetBrains, Zed, a remote box over a forwarded port. No extension and nothing to install beyond running the command.</p></div>
+		<div class="note"><h3>What you give up</h3><p>It is a separate window, so clicking a block cannot scroll your editor. You get "copy path:line" or an editor link instead.</p></div>
+		<div class="note"><h3>Why build it first</h3><p>It is the cheapest surface, and it is the same page the VS Code panel and the Claude link would show, so nothing is wasted.</p></div>
+	</div>
+	<p class="foot">Mock. The port, timings and the saved change are illustrative.</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function hl(s) {
+	return esc(s).replace(/(\/\/.*$)|(&quot;[^&]*?&quot;|"[^"]*?")|\b(import|from|function|const|return|if|throw|new|class|async|await|export|for|of|type|interface|private|constructor)\b|\b(\d+)\b/g,
+		(m, c, str, kw, nu) => c ? '<span class="cm">' + m + '</span>' : str ? '<span class="st">' + m + '</span>' : kw ? '<span class="kw">' + m + '</span>' : '<span class="nu">' + m + '</span>');
+}
+const W = 840, H = 470, HEADH = 26, ORGH = 20, LH = 14;
+const BLOCKS = {
+	pO: {kind: 'function', name: 'processOrder', cls: 'fn', w: 230, st: [10, 150], rng: [68, 84], lines: [
+		'function processOrder(order, inventory) {', '  order.total = calculateOrderTotal(…);', '  reserveOrderStock(order, inventory);',
+		'  order.status = "paid";', '  recordAudit("order.paid", order.id);', '  return order;']},
+	cOT: {kind: 'function', name: 'calculateOrderTotal', cls: 'fn', w: 240, st: [290, 10], rng: [49, 57], lines: [
+		'function calculateOrderTotal(items, inventory) {', '  return roundMoney(items.reduce(…', '    const product = inventory.getProduct(…)',
+		'    return total + product.price * …', '  }, 0));']},
+	rOS: {kind: 'function', name: 'reserveOrderStock', cls: 'fn', w: 240, st: [290, 160], rng: [59, 66], lines: [
+		'function reserveOrderStock(order, inventory) {', '  for (const item of order.items) {', '    inventory.reserve(item.productId, …);', '  }', '}']},
+	rA: {kind: 'function', name: 'recordAudit', cls: 'fn', ext: 'src/audit/log.ts', w: 240, st: [290, 300], lines: [
+		'export function recordAudit(action, orderId) {', '  const entry: AuditEntry = { action, … };', '  console.log(JSON.stringify(entry));', '}']},
+	Inv: {kind: 'class', name: 'Inventory', cls: 'cls', w: 240, st: [590, 10], rng: [25, 47], lines: [
+		'constructor(private products: Map<…>) {}', 'getProduct(id: string): Product {', '  const product = this.products.get(id);', '  if (!product) throw new Error(…);',
+		'  return product;', '}', 'reserve(productId, quantity): void {', '  const product = this.getProduct(productId);', '  if (product.stock < quantity) throw …;', '  product.stock -= quantity;']},
+	rM: {kind: 'function', name: 'roundMoney', cls: 'fn', ext: 'src/utils/money.ts', w: 240, st: [590, 300], lines: [
+		'// Rounds to whole cents…', 'export function roundMoney(amount) {', '  return Math.round(… * 100) / 100;', '}']}
+};
+for (const k in BLOCKS) { const b = BLOCKS[k]; b.h = HEADH + (b.ext ? ORGH : 0) + 6 + b.lines.length * LH + 6; }
+const lineY = (k, i) => BLOCKS[k].st[1] + HEADH + (BLOCKS[k].ext ? ORGH : 0) + 6 + i * LH + 7;
+const EDGES = [
+	{f: 'pO', fl: 1, t: 'cOT'}, {f: 'pO', fl: 2, t: 'rOS'}, {f: 'pO', fl: 4, t: 'rA'},
+	{f: 'cOT', fl: 1, t: 'rM'}, {f: 'cOT', fl: 2, t: 'Inv', tl: 1}, {f: 'rOS', fl: 2, t: 'Inv', tl: 6}
+];
+const PATH = {rA: 'src/audit/log.ts', rM: 'src/utils/money.ts'};
+const USAGE = {
+	pO: {by: [], uses: [['calculateOrderTotal', 'L76'], ['reserveOrderStock', 'L78'], ['recordAudit', 'L81', 'src/audit/log.ts']]},
+	cOT: {by: [['processOrder', 'L76']], uses: [['roundMoney', 'L53', 'src/utils/money.ts'], ['Inventory.getProduct', 'L54']]},
+	rOS: {by: [['processOrder', 'L78']], uses: [['Inventory.reserve', 'L64']]},
+	rA: {by: [['processOrder', 'L81']], uses: [['AuditEntry', 'not expanded']]},
+	Inv: {by: [['calculateOrderTotal', 'L54'], ['reserveOrderStock', 'L64']], uses: []},
+	rM: {by: [['calculateOrderTotal', 'L53']], uses: []}
+};
+const RANGE = {pO: 'src/orders.ts : 68-84', cOT: 'src/orders.ts : 49-57', rOS: 'src/orders.ts : 59-66', Inv: 'src/orders.ts : 25-47', rA: 'src/audit/log.ts : 7-15', rM: 'src/utils/money.ts : 1-4'};
+const chip = (a, p) => '<span class="chip' + (a[2] && a[2].includes('/') ? ' x' : '') + '"><b>' + a[0] + '</b> <i>' + a[1] + (a[2] ? ' ' + a[2] : '') + '</i></span>';
+function usageHtml(k) {
+	const u = USAGE[k];
+	return '<div><h4>Used by</h4><div class="chips">' + (u.by.length ? u.by.map(chip).join('') : '<span class="chip none">nothing else in this file</span>') + '</div></div>'
+		+ '<div><h4>Uses</h4><div class="chips">' + (u.uses.length ? u.uses.map(chip).join('') : '<span class="chip none">nothing</span>') + '</div></div>';
+}
+
+function initCanvas(o) {
+	const world = o.world, NS = 'http://www.w3.org/2000/svg';
+	const svg = document.createElementNS(NS, 'svg');
+	svg.setAttribute('class', 'arrows'); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+	svg.innerHTML = '<defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="mk" d="M0 0 L8 4 L0 8 z"/></marker></defs>';
+	world.appendChild(svg);
+	const cards = {}, arrs = [];
+	for (const k in BLOCKS) {
+		const b = BLOCKS[k], d = document.createElement('div');
+		d.className = 'blk ' + b.cls + (b.ext ? ' ext' : ''); d.tabIndex = 0; d.dataset.k = k;
+		d.style.cssText = 'width:' + b.w + 'px;height:' + b.h + 'px;left:' + b.st[0] + 'px;top:' + b.st[1] + 'px';
+		d.innerHTML = '<div class="bh"><span class="bk">' + b.kind + '</span><span class="bn">' + b.name + '</span></div>'
+			+ (b.ext ? '<div class="bo">from ' + b.ext + '</div>' : '') + '<div class="bb">' + b.lines.map(l => '<div>' + hl(l) + '</div>').join('') + '</div>';
+		d.onclick = () => o.onSelect && o.onSelect(k);
+		d.onkeydown = e => { if (e.key === 'Enter') o.onSelect && o.onSelect(k); };
+		world.appendChild(d); cards[k] = d;
+	}
+	EDGES.forEach(e => {
+		const f = BLOCKS[e.f], t = BLOCKS[e.t];
+		const x1 = f.st[0] + f.w, y1 = lineY(e.f, e.fl), x2 = t.st[0], y2 = e.tl != null ? lineY(e.t, e.tl) : t.st[1] + 13;
+		const dx = Math.max(30, (x2 - x1) / 2);
+		const p = document.createElementNS(NS, 'path');
+		p.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + (x1 + dx) + ' ' + y1 + ' ' + (x2 - dx) + ' ' + y2 + ' ' + (x2 - 3) + ' ' + y2);
+		p.setAttribute('pathLength', '1'); p.setAttribute('class', 'arr'); p.setAttribute('marker-end', 'url(#ah)');
+		const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', x1); c.setAttribute('cy', y1); c.setAttribute('r', 3.2); c.setAttribute('class', 'src');
+		svg.appendChild(p); svg.appendChild(c); arrs.push({e, p, c});
+	});
+	requestAnimationFrame(() => requestAnimationFrame(() => arrs.forEach(a => a.p.classList.add('on'))));
+	let sel = null;
+	const rel = (k, s) => k === s || EDGES.some(e => (e.f === s && e.t === k) || (e.t === s && e.f === k));
+	function select(s) {
+		sel = s;
+		for (const k in cards) { cards[k].classList.toggle('sel', k === s); cards[k].classList.toggle('dim', !!s && !rel(k, s)); }
+		arrs.forEach(a => { const hit = !s || a.e.f === s || a.e.t === s; a.p.classList.toggle('dim', !hit); a.c.classList.toggle('dim', !hit); });
+	}
+	function fit() {
+		const s = Math.min(1.3, Math.max(.62, o.cv.clientWidth / W));
+		o.fit.style.width = (W * s) + 'px'; o.fit.style.height = (H * s) + 'px'; world.style.transform = 'scale(' + s + ')';
+	}
+	new ResizeObserver(fit).observe(o.cv); fit();
+	return {select, cards};
+}
+
+const canvas = initCanvas({world: $('world'), cv: $('cv'), fit: $('fit'), onSelect: choose});
+function choose(k) {
+	canvas.select(k); const b = BLOCKS[k];
+	$('insp').innerHTML = '<div class="sh"><span class="bk">' + b.kind + '</span><span class="nm">' + b.name + '</span></div><div class="loc">' + RANGE[k] + '</div><div style="height:10px"></div>' + usageHtml(k).replace(/<div><h4>/g, '<div style="margin-bottom:10px"><h4>')
+		+ '<div class="toast" style="margin-top:6px"><button class="btn" disabled>Summarize usage</button></div>';
+	$('toast').textContent = b.ext ? 'Would open ' + RANGE[k].split(' : ')[0] + ' as its own storyline.' : 'Copy path:line  ' + RANGE[k].replace(' : ', ':').split('-')[0];
+}
+$('copy').onclick = () => { try { navigator.clipboard.writeText('npx storyline src/orders.ts').then(() => $('copy').textContent = 'Copied', () => $('copy').textContent = 'Select and copy'); } catch (e) { $('copy').textContent = 'Select and copy'; } };
+let chg = false;
+$('save').onclick = () => {
+	chg = !chg;
+	canvas.cards.cOT.classList.toggle('chg', chg);
+	$('live').classList.remove('flash'); void $('live').offsetWidth; $('live').classList.add('flash');
+	$('live').textContent = chg ? 'orders.ts changed, re-parsed' : 'live, watching file';
+	$('toast').textContent = chg ? '1 block changed. Its only caller, processOrder, is unchanged.' : '';
+	$('save').textContent = chg ? 'Undo the change' : 'Simulate a save in your editor';
+};
+</script>

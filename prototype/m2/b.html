@@ -1,0 +1,151 @@
+<title>Plan Map in the Terminal</title>
+<style>
+/*PM_CSS*/
+/*TERM_CSS*/
+.screen { padding: 10px 8px 12px; overflow: hidden; }
+.grid { margin: 0 auto; width: max-content; font-family: var(--font-mono); line-height: 1.2; white-space: pre; display: block; }
+.grid .r { display: block; height: 1.2em; white-space: nowrap; }
+.grid i { display: inline-block; width: 1ch; font-style: normal; overflow: hidden; vertical-align: top; text-align: center; }
+.k-d { color: var(--t-dim); } .k-b { color: var(--t-blue); } .k-g { color: var(--t-green); } .k-r { color: var(--t-red); } .k-y { color: var(--t-yellow); } .k-w { color: var(--t-ink); } .k-p { color: var(--t-purple); }
+.k-sel { background: var(--t-ink); color: var(--t-bg); }
+.k-gbg { background: color-mix(in srgb, var(--t-green) 16%, transparent); color: var(--t-green); } .k-rbg { background: color-mix(in srgb, var(--t-red) 16%, transparent); color: var(--t-red); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.keys button { font-family: var(--font-mono); font-size: 12px; background: var(--t-bar); color: var(--t-ink); border: 1px solid var(--t-line); border-radius: 6px; padding: 4px 9px; }
+.keys button:hover { border-color: var(--t-blue); }
+</style>
+<div class="app">
+	<header class="top">
+		<h1>Plan Map in the Terminal</h1>
+		<p>A full screen view for people who live in the terminal. The map is boxes you move between, Enter zooms into a file's exact lines, and p / a flip between the plan and the applied result. Click the keys below or press them.</p>
+	</header>
+	<div class="term" id="term"><div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>storyline plan   (npx storyline plan)</span></div>
+		<div class="screen" id="scr"><div class="grid" id="grid" tabindex="0" aria-label="Terminal view. Arrow keys move, Enter zooms in, Escape zooms out, p plan, a applied, c check."></div>
+		<div class="keys" id="keys"></div></div></div>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>The whole project on one screen with the new files in their own band, then the exact lines of any file one keypress away. No browser, no mouse.</p></div>
+		<div class="note"><h3>What you give up</h3><p>Arrows between files are listed for the selected box instead of being drawn, and there is no free pan. Cell grids are good at boxes and bad at routing.</p></div>
+		<div class="note"><h3>Keys</h3><p><span class="pill">arrows</span> move &nbsp;<span class="pill">enter</span> zoom in &nbsp;<span class="pill">esc</span> zoom out &nbsp;<span class="pill">b p a</span> view &nbsp;<span class="pill">c</span> check</p></div>
+	</div>
+	<p class="foot">Mock TUI. Files, blocks, line numbers, diff lines and arrows are computed from a real type-checked mini project. The check result for the handler arrow is staged.</p>
+</div>
+<script type="application/json" id="data">__DATA__</script>
+<script>
+const $ = id => document.getElementById(id);
+const D = JSON.parse($('data').textContent), B = D.blocks;
+const W = 96, H = 30;
+let mode = 'plan', zoom = null, sel = 0, scroll = 0, check = false;
+const FILES = [
+	{f: 'src/api/refundHandler.ts', x: 2, y: 4}, {f: 'src/refunds.ts', x: 34, y: 4},
+	{f: 'src/orders.ts', x: 2, y: 12}, {f: 'src/utils/money.ts', x: 34, y: 12}, {f: 'src/audit/log.ts', x: 66, y: 12},
+	{f: 'src/api/checkout.ts', x: 2, y: 19}, {f: 'src/jobs/retry.ts', x: 34, y: 19}
+];
+const BW = 29, BH = 5;
+const vis = f => mode !== 'base' || D.fstat[f] !== 'new';
+function mk() { return Array.from({length: H}, () => Array.from({length: W}, () => ({c: ' ', k: ''}))); }
+function put(g, x, y, t, k) { for (let i = 0; i < t.length; i++) if (y >= 0 && y < H && x + i >= 0 && x + i < W) g[y][x + i] = {c: t[i], k}; }
+function line(g, x, y, w, k, ch) { put(g, x, y, ch.repeat(w), k); }
+function box(g, x, y, w, h, k, dashed) {
+	const hz = dashed ? '- ' : '--';
+	let top = '+'; for (let i = 0; i < w - 2; i++) top += hz[i % 2]; top += '+';
+	put(g, x, y, top, k); put(g, x, y + h - 1, top, k);
+	for (let j = 1; j < h - 1; j++) { put(g, x, y + j, dashed && j % 2 ? ':' : '|', k); put(g, x + w - 1, y + j, dashed && j % 2 ? ':' : '|', k); }
+}
+const short = f => f.replace(/^src\//, '');
+const cut = (t, n) => t.length > n ? t.slice(0, n - 3) + '...' : t;
+function fileMeta(f) {
+	const st = D.fstat[f], bl = Object.values(B).filter(b => b.file === f && b.kind !== 'imports');
+	if (st === 'new') return ['NEW   ' + bl.length + ' blocks', 'k-g'];
+	if (st === 'mod') return ['MOD   ' + bl.filter(b => b.status === 'mod').length + ' blocks, +1 slot', 'k-y'];
+	const used = D.edges.some(e => e.status === 'new' && e.to.startsWith(f + '::'));
+	return [used ? 'used by new code' : bl.length + ' blocks', 'k-d'];
+}
+function mapScreen() {
+	const g = mk();
+	put(g, 0, 0, ' storyline', 'k-b'); put(g, 11, 0, 'refund support', 'k-w');
+	put(g, W - 40, 0, 'view: [b]ase [p]lan [a]pplied', 'k-d');
+	const vm = {base: 'b', plan: 'p', applied: 'a'}[mode], at = W - 40 + 'view: '.length + {b: 0, p: 5, a: 10}[vm];
+	line(g, 0, 1, W, 'k-d', '-');
+	if (mode !== 'base') put(g, 2, 3, (mode === 'plan' ? 'NEW FILES (proposed, not on disk)' : 'NEW FILES (written)'), 'k-g');
+	put(g, 2, 11, 'EXISTING', 'k-d');
+	FILES.forEach((F, i) => {
+		if (!vis(F.f)) return;
+		const st = D.fstat[F.f], isSel = FILES.indexOf(F) === sel;
+		const k = isSel ? 'k-b' : st === 'new' ? 'k-g' : st === 'mod' ? 'k-y' : 'k-d';
+		box(g, F.x, F.y, BW, BH, k, st === 'new' && mode === 'plan');
+		put(g, F.x + 2, F.y + 1, cut((st === 'new' ? '+ ' : st === 'mod' ? '~ ' : '  ') + short(F.f), BW - 4), isSel ? 'k-b' : st === 'new' ? 'k-g' : st === 'mod' ? 'k-y' : 'k-w');
+		const [m, mk2] = fileMeta(F.f);
+		put(g, F.x + 2, F.y + 3, cut(mode === 'base' && st !== 'same' ? '' : m, BW - 4), isSel ? 'k-b' : mk2);
+	});
+	// info pane for selected
+	const F = FILES[sel], y0 = 25;
+	line(g, 0, y0 - 1, W, 'k-d', '-');
+	put(g, 2, y0, short(F.f), 'k-b');
+	const calls = D.fedges.filter(e => e.from === F.f && (mode !== 'base' || e.status !== 'new')).map(e => short(e.to));
+	const by = D.fedges.filter(e => e.to === F.f && (mode !== 'base' || e.status !== 'new')).map(e => short(e.from));
+	put(g, 2, y0 + 1, cut('calls      ' + (calls.join('  ') || 'nothing'), W - 4), 'k-w');
+	put(g, 2, y0 + 2, cut('called by  ' + (by.join('  ') || 'nothing'), W - 4), 'k-w');
+	put(g, 2, y0 + 3, cut('enter: zoom in to the exact lines', W - 4), 'k-d');
+	if (check && mode === 'applied') {
+		const n = D.edges.filter(e => e.status === 'new').length;
+		put(g, 0, 17, ' CHECK ' + n + ' of ' + (n + 1) + ' proposed arrows confirmed. Not in the code: refundHandler -> recordAudit ', 'k-rbg');
+	}
+	put(g, 0, H - 1, ' arrows move  enter zoom  esc out  b/p/a view  c check  q quit', 'k-d');
+	return g;
+}
+function fileScreen() {
+	const F = FILES[sel], g = mk(), rows = D.ftext[F.f].filter(x => mode !== 'base' || x.d !== '+');
+	const st = D.fstat[F.f];
+	put(g, 0, 0, ' ' + F.f, 'k-b'); put(g, W - 30, 0, 'view: ' + mode, 'k-d');
+	line(g, 0, 1, W, 'k-d', '-');
+	const edgeAt = {};
+	D.edges.filter(e => e.from.startsWith(F.f + '::') && (mode !== 'base' || e.status !== 'new')).forEach(e => {
+		const t = e.callText.trim(); (edgeAt[t] = edgeAt[t] || []).push(e);
+	});
+	const vh = H - 5, max = Math.max(0, rows.length - vh); scroll = Math.min(Math.max(0, scroll), max);
+	rows.slice(scroll, scroll + vh).forEach((r, i) => {
+		const y = 2 + i, n = r.d === '-' ? r.o : r.n ?? r.o;
+		const mark = r.d === ' ' ? ' ' : r.d;
+		const k = r.d === '+' && mode !== 'base' ? 'k-gbg' : r.d === '-' ? 'k-rbg' : 'k-w';
+		const ed = edgeAt[r.t.trim()]; const tail = ed && r.d !== '-' ? ' --> ' + ed.map(e => e.to.split('::')[1]).join(', ') : '';
+		put(g, 1, y, String(n).padStart(3) + ' ' + mark + ' ', r.d === ' ' ? 'k-d' : k);
+		put(g, 7, y, cut(r.t, W - 8 - tail.length), k);
+		if (tail) put(g, 7 + Math.min(r.t.length, W - 8 - tail.length), y, tail, 'k-b');
+		if (r.d !== ' ') for (let x = 7 + Math.min(r.t.length, W - 8 - tail.length) + tail.length; x < W - 1; x++) g[y][x] = {c: ' ', k};
+	});
+	line(g, 0, H - 3, W, 'k-d', '-');
+	const add = D.ftext[F.f].filter(x => x.d === '+').length, del = D.ftext[F.f].filter(x => x.d === '-').length;
+	put(g, 1, H - 2, st === 'new' ? 'NEW file, ' + add + ' lines' : st === 'mod' ? '+' + add + ' -' + del + ' lines changed' : 'unchanged', st === 'new' ? 'k-g' : st === 'mod' ? 'k-y' : 'k-d');
+	put(g, W - 36, H - 2, 'j/k scroll   esc back to map', 'k-d');
+	put(g, 0, H - 1, ' up/down scroll  esc zoom out  p/a view', 'k-d');
+	return g;
+}
+function render() {
+	const g = zoom ? fileScreen() : mapScreen();
+	$('grid').innerHTML = g.map(r => {
+		let out = '', cur = null, buf = '';
+		const flush = () => { if (buf) out += '<span class="' + cur + '">' + buf + '</span>'; buf = ''; };
+		r.forEach(c => { if (c.k !== cur) { flush(); cur = c.k; } const ch = c.c === '<' ? '&lt;' : c.c === '>' ? '&gt;' : c.c === '&' ? '&amp;' : c.c; buf += '<i>' + ch + '</i>'; });
+		flush(); return '<span class="r">' + out + '</span>';
+	}).join('');
+	fit();
+	$('keys').innerHTML = (zoom ? [['up', 'scroll up'], ['down', 'scroll down'], ['esc', 'zoom out']] : [['left', '<'], ['up', '^'], ['down', 'v'], ['right', '>'], ['enter', 'enter zoom']]).concat([['b', 'b'], ['p', 'p'], ['a', 'a'], ['c', 'c check']]).map(([k, l]) => '<button data-k="' + k + '">' + l + '</button>').join('');
+	document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => key(b.dataset.k));
+}
+function fit() { const w = $('scr').clientWidth - 16; const fs = Math.max(5, Math.min(17, w / (W * 0.6))); $('grid').style.fontSize = fs + 'px'; }
+function move(dx, dy) {
+	const cur = FILES[sel]; let best = -1, bd = 1e9;
+	FILES.forEach((F, i) => { if (i === sel || !vis(F.f)) return; const ax = F.x - cur.x, ay = F.y - cur.y; if (dx && Math.sign(ax) !== dx) return; if (dy && Math.sign(ay) !== dy) return; const d = dx ? Math.abs(ax) + Math.abs(ay) * 3 : Math.abs(ay) + Math.abs(ax) * 3; if (d < bd) { bd = d; best = i; } });
+	if (best >= 0) sel = best;
+}
+function setMode(m) { mode = m; if (!vis(FILES[sel].f)) sel = 2; if (m !== 'applied') check = false; scroll = 0; }
+function key(k) {
+	if (k === 'p' || k === 'b' || k === 'a') setMode({p: 'plan', b: 'base', a: 'applied'}[k]);
+	else if (k === 'c') { if (mode !== 'applied') setMode('applied'); check = !check; }
+	else if (zoom) { if (k === 'esc') zoom = false; else if (k === 'up') scroll--; else if (k === 'down') scroll++; }
+	else { if (k === 'left') move(-1, 0); else if (k === 'right') move(1, 0); else if (k === 'up') move(0, -1); else if (k === 'down') move(0, 1); else if (k === 'enter') { zoom = true; scroll = 0; } }
+	render();
+}
+$('grid').addEventListener('keydown', e => { const m = {ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'enter', Escape: 'esc', j: 'down', k: 'up', p: 'p', a: 'a', b: 'b', c: 'c'}[e.key]; if (m) { e.preventDefault(); key(m); } });
+addEventListener('resize', fit);
+render(); document.fonts && document.fonts.ready.then(render);
+</script>

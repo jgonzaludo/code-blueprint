@@ -1,0 +1,158 @@
+<title>Storyline Terminal View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: a keyboard-driven terminal UI. Boxes and arrows are drawn from characters on a grid,
+   a selection moves with the arrow keys, and an inspector line sits under the grid. */
+/*CORE_CSS*/
+.term { background: var(--t-bg); color: var(--t-ink); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--t-line); min-width: 0; }
+.tbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--t-bar); border-bottom: 1px solid var(--t-line); font-family: var(--font-mono); font-size: 11.5px; color: var(--t-dim); }
+.dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--t-line); }
+.tscroll { overflow-x: auto; }
+#scr { margin: 0; padding: 12px 14px 4px; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; white-space: pre; outline: none; }
+#scr i { display: inline-block; width: 1ch; font-style: normal; text-align: center; overflow: visible; }
+#scr .b { color: var(--t-dim); } #scr .ext { color: var(--t-orange); } #scr .sel { color: var(--t-blue); font-weight: 600; }
+#scr .ar { color: #4a6f93; } #scr .hi { color: var(--t-blue); } #scr .dm { color: #2c3641; }
+#scr .ti { color: var(--t-ink); } #scr .cx { color: var(--t-dim); } #scr .bs { color: var(--t-ink); font-weight: 600; }
+#insp { padding: 6px 14px 10px; font-family: var(--font-mono); font-size: 12px; line-height: 18px; border-top: 1px solid var(--t-line); min-height: 94px; white-space: pre-wrap; color: var(--t-ink); }
+#insp .d { color: var(--t-dim); } #insp .o { color: var(--t-orange); } #insp .bl { color: var(--t-blue); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 8px 14px; background: var(--t-bar); border-top: 1px solid var(--t-line); font-family: var(--font-mono); font-size: 11.5px; color: var(--t-dim); }
+.keys button { border: 0; background: transparent; color: var(--t-dim); padding: 2px 4px; font: inherit; border-radius: 4px; }
+.keys button b { color: var(--t-ink); background: var(--t-line); border-radius: 3px; padding: 0 5px; margin-right: 4px; font-weight: 500; }
+.keys button:hover { color: var(--t-ink); }
+.hintline { color: var(--muted); font-size: 12.5px; }
+</style>
+
+<div class="app">
+	<header class="top">
+		<h1>Storyline Terminal View</h1>
+		<p>A keyboard-driven view for people who live in the terminal. Click the screen and use the arrow keys, or press the keys shown at the bottom.</p>
+	</header>
+	<div class="term">
+		<div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>storyline src/orders.ts</span></div>
+		<div class="tscroll"><pre id="scr" tabindex="0" aria-label="Storyline terminal view. Arrow keys move the selection."></pre></div>
+		<div id="insp"></div>
+		<div class="keys">
+			<button data-k="ArrowLeft"><b>←</b></button><button data-k="ArrowRight"><b>→</b></button><button data-k="ArrowUp"><b>↑</b></button><button data-k="ArrowDown"><b>↓</b>move</button>
+			<button data-k="u"><b>u</b>who uses it (repo)</button>
+			<button data-k="s"><b>s</b>summarize</button>
+			<button data-k="o"><b>o</b>open canvas</button>
+			<button data-k="q"><b>q</b>quit</button>
+		</div>
+	</div>
+	<p class="hintline" id="hint"></p>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>A real interactive map without leaving the terminal. Works over SSH, in tmux, in any editor's built-in terminal. No browser, no server.</p></div>
+		<div class="note"><h3>What you give up</h3><p>Code is shown as short trimmed lines, not full blocks, and there is no free dragging. The canvas is one keypress away for when you want the real thing.</p></div>
+		<div class="note"><h3>Cost to build</h3><p>The most work of the four. It is a separate renderer from the canvas, so it only makes sense if terminal users ask for it.</p></div>
+	</div>
+	<p class="foot">Demo project data. Callers across the repo and the summary text are made up for the mock.</p>
+</div>
+
+<script>
+//CORE_JS
+const C = 118, R = 25;
+const T = {
+	pO: {x: 1, y: 8, w: 32, t: 'fn processOrder', ls: ['if (order.status !== "pending") …', 'order.total = calculateOrderTotal(…);', 'reserveOrderStock(order, inventory);', 'order.status = "paid";', 'recordAudit("order.paid", order.id);', 'return order;']},
+	cOT: {x: 42, y: 0, w: 36, t: 'fn calculateOrderTotal', ls: ['return roundMoney(items.reduce(…', '  inventory.getProduct(item.productId)', '  total + product.price * …', '}, 0));']},
+	rOS: {x: 42, y: 8, w: 36, t: 'fn reserveOrderStock', ls: ['for (const item of order.items) {', '  inventory.reserve(item.productId, …);', '}']},
+	rA: {x: 42, y: 15, w: 36, ext: 1, from: 'src/audit/log.ts', t: 'fn recordAudit', ls: ['const entry: AuditEntry = {…};', 'console.log(JSON.stringify(entry));']},
+	Inv: {x: 84, y: 0, w: 33, t: 'class Inventory', ls: ['constructor(private products)', 'getProduct(id): Product {…}', 'reserve(productId, quantity) {…}']},
+	rM: {x: 84, y: 15, w: 33, ext: 1, from: 'src/utils/money.ts', t: 'fn roundMoney', ls: ['return Math.round(… * 100) / 100;']}
+};
+for (const k in T) T[k].h = T[k].ls.length + 2 + (T[k].from ? 1 : 0);
+const TE = [
+	{f: 'pO', fl: 1, t: 'cOT', gx: 36}, {f: 'pO', fl: 2, t: 'rOS', gx: 38}, {f: 'pO', fl: 4, t: 'rA', gx: 40},
+	{f: 'cOT', fl: 0, t: 'rM', gx: 81}, {f: 'cOT', fl: 1, t: 'Inv', tl: 1, gx: 80}, {f: 'rOS', fl: 1, t: 'Inv', tl: 2, gx: 82}
+];
+const ORDER = ['pO', 'cOT', 'rOS', 'rA', 'Inv', 'rM'];
+let sel = 'pO', msg = '';
+const wrap = (run, k) => '<span class="' + k + '">' + [...run].map(c => '<i>' + esc(c) + '</i>').join('') + '</span>';
+function fitFont() { const w = document.querySelector('.tscroll').clientWidth; $('scr').style.fontSize = Math.max(8.5, Math.min(13, (w - 28) / (C * 0.6))) + 'px'; }
+new ResizeObserver(fitFont).observe(document.querySelector('.tscroll'));
+function render() {
+	const ch = [], cl = [];
+	for (let y = 0; y < R; y++) { ch.push(new Array(C).fill(' ')); cl.push(new Array(C).fill('')); }
+	const put = (x, y, c, k) => {
+		const e = ch[y][x];
+		if (k.startsWith('ar') && (e === '│' && c === '─' || e === '─' && c === '│')) c = '┼';
+		ch[y][x] = c; cl[y][x] = k;
+	};
+	TE.forEach(e => {
+		const f = T[e.f], t = T[e.t];
+		const hit = e.f === sel || e.t === sel;
+		const k = 'ar ' + (hit ? 'hi' : (sel ? 'dm' : ''));
+		const x1 = f.x + f.w - 1, y1 = f.y + 1 + e.fl, x2 = t.x, y2 = t.y + 1 + (e.tl != null ? e.tl : 0);
+		for (let x = x1 + 1; x < e.gx; x++) put(x, y1, '─', k);
+		if (y1 !== y2) {
+			const dn = y2 > y1;
+			for (let y = Math.min(y1, y2) + 1; y < Math.max(y1, y2); y++) put(e.gx, y, '│', k);
+			put(e.gx, y1, dn ? '╮' : '╯', k); put(e.gx, y2, dn ? '╰' : '╭', k);
+		} else put(e.gx, y1, '─', k);
+		for (let x = e.gx + 1; x < x2 - 1; x++) put(x, y2, '─', k);
+		put(x2 - 1, y2, '>', k);
+	});
+	ORDER.forEach(id => {
+		const b = T[id], s = id === sel, k = s ? 'sel' : b.ext ? 'ext' : 'b';
+		for (let x = 1; x < b.w - 1; x++) { put(b.x + x, b.y, '─', k); put(b.x + x, b.y + b.h - 1, '─', k); }
+		for (let y = 1; y < b.h - 1; y++) { put(b.x, b.y + y, '│', k); put(b.x + b.w - 1, b.y + y, '│', k); for (let x = 1; x < b.w - 1; x++) put(b.x + x, b.y + y, ' ', ''); }
+		put(b.x, b.y, '╭', k); put(b.x + b.w - 1, b.y, '╮', k); put(b.x, b.y + b.h - 1, '╰', k); put(b.x + b.w - 1, b.y + b.h - 1, '╯', k);
+		const title = ' ' + b.t + ' ';
+		for (let i = 0; i < title.length && 2 + i < b.w - 1; i++) put(b.x + 2 + i, b.y, title[i], s ? 'sel' : b.ext ? 'ext' : 'bs');
+		const rows = (b.from ? [['from ' + b.from, 'ext']] : []).concat(b.ls.map(l => [l, 'cx']));
+		rows.forEach((r, i) => { const l = r[0], tx = l.length > b.w - 4 ? l.slice(0, b.w - 7) + '...' : l; for (let j = 0; j < tx.length; j++) put(b.x + 2 + j, b.y + 1 + i, tx[j], r[1]); });
+	});
+	$('scr').innerHTML = ch.map((row, y) => {
+		let out = '', run = '', rc = null;
+		row.forEach((c, x) => { const k = cl[y][x]; if (k !== rc) { if (run) out += wrap(run, rc); run = ''; rc = k; } run += c; });
+		if (run) out += wrap(run, rc);
+		return out;
+	}).join('\n');
+	const u = USAGE[sel], b = BLOCKS[sel];
+	const fmt = a => '<span class="bl">' + a[0] + '</span> <span class="d">' + a[1] + '</span>' + (a[2] ? ' <span class="' + (a[2].includes('/') ? 'o' : 'd') + '">' + a[2] + '</span>' : '');
+	$('insp').innerHTML = '<span class="bl">▸ ' + b.name + '</span>  <span class="d">' + RANGE[sel] + '</span>\n'
+		+ '  used by  ' + (u.by.length ? u.by.map(fmt).join('  ·  ') : '<span class="d">nothing else in this file</span>') + '\n'
+		+ '  uses     ' + (u.uses.length ? u.uses.map(fmt).join('  ·  ') : '<span class="d">nothing</span>') + '\n'
+		+ (msg ? '\n' + msg : '');
+}
+function nav(dir) {
+	const c = k => [T[k].x + T[k].w / 2, T[k].y + T[k].h / 2], [cx, cy] = c(sel);
+	let best = null, bd = 1e9;
+	ORDER.forEach(k => {
+		if (k === sel) return;
+		const [x, y] = c(k), dx = x - cx, dy = y - cy;
+		const ok = dir === 'ArrowRight' ? dx > 8 : dir === 'ArrowLeft' ? dx < -8 : dir === 'ArrowDown' ? dy > 1 && Math.abs(dx) < 20 : dy < -1 && Math.abs(dx) < 20;
+		if (!ok) return;
+		const d = (dir.includes('Left') || dir.includes('Right') ? Math.abs(dy) * 3 + Math.abs(dx) : Math.abs(dx) * 3 + Math.abs(dy));
+		if (d < bd) { bd = d; best = k; }
+	});
+	if (best) sel = best;
+}
+let typing = null;
+function key(k) {
+	clearTimeout(typing);
+	msg = '';
+	if (k.startsWith('Arrow')) nav(k);
+	else if (k === 'u') {
+		msg = '<span class="d">asking the language server for references to ' + BLOCKS[sel].name + ' …</span>';
+		render();
+		typing = setTimeout(() => {
+			msg = sel === 'pO' ? '<span class="d">2 callers found:</span>  <span class="bl">checkoutHandler</span> <span class="d">L3</span> <span class="o">src/api/checkout.ts</span>  ·  <span class="bl">retryFailed</span> <span class="d">L3</span> <span class="o">src/jobs/retry.ts</span>'
+				: '<span class="d">no callers outside this file</span>';
+			render();
+		}, 700); return;
+	} else if (k === 's') {
+		const t = sel === 'pO' ? 'Entry point. Rejects non-pending orders, totals them, reserves stock, marks paid and writes an audit line.' : 'Summary uses only the callers and callees listed above.';
+		let i = 0;
+		const tick = () => { i += 3; msg = '<span class="d">summary  </span>' + t.slice(0, i); render(); if (i < t.length) typing = setTimeout(tick, 18); };
+		tick(); return;
+	} else if (k === 'o') msg = '<span class="d">opening canvas in your browser →  http://localhost:4173/?file=src/orders.ts</span>';
+	else if (k === 'q') msg = '<span class="d">(q would quit and hand the terminal back)</span>';
+	render();
+}
+$('scr').addEventListener('keydown', e => { if (e.key.startsWith('Arrow') || 'usoq'.includes(e.key)) { e.preventDefault(); key(e.key); } });
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { $('scr').focus(); key(b.dataset.k); });
+$('hint').textContent = 'Click the screen first, then use the arrow keys, u, s, o or q.';
+render();
+</script>

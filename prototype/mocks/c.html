@@ -1,0 +1,266 @@
+<title>Storyline in VS Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: a VS Code window with the real file on the left and the storyline panel opening beside it.
+   Pick how you open it, and the matching spot in the window pulses. Clicks sync both ways. */
+/*CORE_CSS*/
+.how { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.how .lab { font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.vs { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+.vtitle { text-align: center; padding: 6px; font-size: 12px; color: var(--muted); background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.vbody { display: grid; grid-template-columns: 40px 150px minmax(0, 1fr); min-height: 560px; }
+@media (max-width: 980px) { .vbody { grid-template-columns: 40px minmax(0, 1fr); } .explorer { display: none; } }
+.act { background: var(--surface-2); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 12px; }
+.act i { width: 18px; height: 18px; border: 1.5px solid var(--muted); border-radius: 4px; opacity: .6; }
+.act i.on { opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
+.explorer { background: var(--surface-2); border-right: 1px solid var(--line); padding: 10px 8px; font-size: 12.5px; color: var(--ink-2); }
+.explorer h5 { margin: 0 0 8px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.explorer div { padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 11.5px; position: relative; }
+.explorer .ind { padding-left: 16px; } .explorer .ind2 { padding-left: 28px; }
+.explorer .cur { background: var(--accent-soft); color: var(--ink); }
+.main { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.main.open { grid-template-columns: minmax(0, .8fr) minmax(0, 1.5fr); }
+@media (max-width: 760px) { .main.open { grid-template-columns: minmax(0, 1fr); } }
+.edcol { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.tabs { display: flex; align-items: center; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.tab { font-family: var(--font-mono); font-size: 11.5px; padding: 6px 12px; background: var(--surface); border-right: 1px solid var(--line); border-bottom: 2px solid var(--accent); }
+.tabs .sp { flex: 1; }
+.ticon { border: 1px solid transparent; background: transparent; width: 28px; height: 26px; border-radius: 6px; margin-right: 6px; display: grid; place-items: center; }
+.ticon:hover { border-color: var(--line); }
+.ticon svg { width: 16px; height: 16px; stroke: var(--ink-2); fill: none; stroke-width: 1.6; }
+.code { position: relative; flex: 1; min-height: 430px; background: var(--canvas); font-family: var(--font-mono); font-size: 11.5px; line-height: 18px; }
+.code-in { position: absolute; inset: 0; overflow: auto; padding-block: 6px; }
+.l { display: flex; white-space: pre; height: 18px; border-left: 3px solid transparent; cursor: text; }
+.l .no { flex: none; width: 34px; text-align: right; padding-right: 10px; color: var(--muted); user-select: none; font-variant-numeric: tabular-nums; }
+.l.hot { background: color-mix(in srgb, var(--blue) 17%, transparent); border-left-color: var(--blue); }
+.lens { height: 18px; padding-left: 37px; font-family: var(--font-ui); font-size: 11px; font-style: italic; color: var(--muted); white-space: nowrap; }
+.lens b { font-weight: 500; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.lens b:hover { color: var(--accent); }
+.pulse { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent); } }
+.lens .pulse, .ticon.pulse { border-radius: 4px; }
+.ctx { position: absolute; z-index: 5; right: 18px; top: 150px; width: 230px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; font-family: var(--font-ui); font-size: 12.5px; }
+.ctx div { padding: 5px 10px; border-radius: 5px; color: var(--ink-2); }
+.ctx div.hl { background: var(--accent-soft); color: var(--ink); font-weight: 600; cursor: pointer; }
+.panel { display: none; min-width: 0; flex-direction: column; }
+.main.open .panel { display: flex; }
+.ptitle { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.ptitle .sp { flex: 1; } .ptitle .follow { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.panel .cv { flex: 0 0 auto; }
+.insp { border-top: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 8px; align-content: start; min-height: 100px; }
+.ih { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ih .bk { font-family: var(--font-mono); font-size: 10.5px; color: var(--blue); border: 1px solid color-mix(in srgb, var(--blue) 40%, transparent); border-radius: 4px; padding: 0 5px; }
+.ih .nm { font-family: var(--font-mono); font-weight: 600; font-size: 13.5px; } .ih .lc { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.cols h4 { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.ph { color: var(--muted); font-size: 13px; }
+.status { display: flex; align-items: center; gap: 14px; padding: 4px 12px; background: var(--accent); color: #fff; font-size: 12px; }
+.status .sp { flex: 1; }
+.status button { background: transparent; border: 0; color: #fff; font-size: 12px; padding: 1px 6px; border-radius: 4px; }
+.status button:hover { background: rgba(255,255,255,.2); }
+.status button.pulse { box-shadow: 0 0 0 0 rgba(255,255,255,.6); background: rgba(255,255,255,.22); }
+.hint { color: var(--muted); font-size: 12.5px; }
+</style>
+
+<div class="app">
+	<header class="top">
+		<h1>Storyline in VS Code</h1>
+		<p>The full experience. The panel opens beside your code and follows the file you are in. Pick a way to open it, then try clicking a block or a line of code.</p>
+	</header>
+	<div class="how" role="group" aria-label="Ways to open">
+		<span class="lab">Open it with</span>
+		<div class="seg">
+			<button class="btn on" data-m="lens">CodeLens</button>
+			<button class="btn" data-m="key">Keybinding</button>
+			<button class="btn" data-m="icon">Title bar icon</button>
+			<button class="btn" data-m="ctx">Right click</button>
+			<button class="btn" data-m="bar">Status bar</button>
+		</div>
+		<span class="hint" id="hint"></span><button class="btn" id="keybtn" hidden>⌘⇧L</button>
+	</div>
+
+	<div class="vs" id="win">
+		<div class="vtitle">orders.ts — shop — Visual Studio Code</div>
+		<div class="vbody">
+			<div class="act"><i></i><i class="on"></i><i></i><i></i></div>
+			<div class="explorer">
+				<h5>Shop</h5>
+				<div>▾ src</div>
+				<div class="ind">▾ api</div><div class="ind2">checkout.ts</div>
+				<div class="ind">▾ audit</div><div class="ind2">log.ts</div>
+				<div class="ind">▾ utils</div><div class="ind2">money.ts</div>
+				<div class="ind cur">orders.ts</div>
+			</div>
+			<div class="main" id="main">
+				<div class="edcol">
+					<div class="tabs"><span class="tab">orders.ts</span><span class="sp"></span>
+						<button class="ticon" id="ticon" aria-label="Show storyline"><svg viewBox="0 0 16 16"><rect x="1.5" y="2" width="5" height="4" rx="1"/><rect x="9.5" y="2" width="5" height="4" rx="1"/><rect x="9.5" y="10" width="5" height="4" rx="1"/><path d="M6.5 4h3M8 4v8h1.5"/></svg></button>
+					</div>
+					<div class="code"><div class="code-in" id="code"></div>
+						<div class="ctx" id="ctx" hidden><div>Go to Definition</div><div>Peek</div><div class="hl" id="ctxit">Show storyline for this file</div><div>Format Document</div></div>
+					</div>
+				</div>
+				<div class="panel">
+					<div class="ptitle"><span>Storyline</span><span class="sp"></span><span class="follow">follows the active editor</span></div>
+					<div class="cv" id="cv"><div class="fit" id="fit"><div class="world" id="world"></div></div></div>
+					<div class="insp" id="insp"></div>
+				</div>
+			</div>
+		</div>
+		<div class="status"><span id="stmsg">Ready</span><span class="sp"></span><button id="sbar">◇ Storyline</button><span>TypeScript</span><span>Ln 68, Col 1</span></div>
+	</div>
+
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>Click a block and the editor scrolls to those exact lines. Click a line in the editor and the block lights up. External blocks open the real file.</p></div>
+		<div class="note"><h3>What you give up</h3><p>Only works in VS Code and its forks, and it is the most work to build. JetBrains, Vim and Zed users need the browser version.</p></div>
+		<div class="note"><h3>Why it is the best daily driver</h3><p>It opens once, stays beside your code and follows the file you are in, so there is nothing to remember to open.</p></div>
+	</div>
+	<p class="foot">Mock of a VS Code window. Project files other than orders.ts are placeholders.</p>
+</div>
+
+<script>
+//CORE_JS
+const SRC = `import { roundMoney } from "./utils/money";
+import { recordAudit } from "./audit/log";
+
+type OrderStatus = "pending" | "paid" | "shipped" | "cancelled";
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+}
+
+interface OrderItem {
+  productId: string;
+  quantity: number;
+}
+
+interface Order {
+  id: string;
+  items: OrderItem[];
+  status: OrderStatus;
+  total: number;
+}
+
+class Inventory {
+  constructor(private products: Map<string, Product>) {}
+
+  getProduct(id: string): Product {
+    const product = this.products.get(id);
+
+    if (!product) {
+      throw new Error(\`Unknown product: \${id}\`);
+    }
+
+    return product;
+  }
+
+  reserve(productId: string, quantity: number): void {
+    const product = this.getProduct(productId);
+
+    if (product.stock < quantity) {
+      throw new Error(\`Insufficient stock for \${product.name}\`);
+    }
+
+    product.stock -= quantity;
+  }
+}
+
+function calculateOrderTotal(
+  items: OrderItem[],
+  inventory: Inventory
+): number {
+  return roundMoney(items.reduce((total, item) => {
+    const product = inventory.getProduct(item.productId);
+    return total + product.price * item.quantity;
+  }, 0));
+}
+
+function reserveOrderStock(
+  order: Order,
+  inventory: Inventory
+): void {
+  for (const item of order.items) {
+    inventory.reserve(item.productId, item.quantity);
+  }
+}
+
+function processOrder(
+  order: Order,
+  inventory: Inventory
+): Order {
+  if (order.status !== "pending") {
+    throw new Error("Only pending orders can be processed");
+  }
+
+  order.total = calculateOrderTotal(order.items, inventory);
+
+  reserveOrderStock(order, inventory);
+
+  order.status = "paid";
+  recordAudit("order.paid", order.id);
+
+  return order;
+}
+`.split('\n');
+const LENS = {25: '3 references', 49: '1 reference', 59: '1 reference', 68: '0 references'};
+const lineBlock = n => { for (const k in BLOCKS) { const r = BLOCKS[k].rng; if (r && n >= r[0] && n <= r[1]) return k; } return null; };
+let html = '';
+SRC.forEach((t, i) => {
+	const n = i + 1;
+	if (LENS[n]) html += '<div class="lens" data-lens="' + n + '"><span>' + LENS[n] + ' | </span><b data-open="lens">Show storyline</b></div>';
+	if (i < SRC.length - 1 || t) html += '<div class="l" data-n="' + n + '"><span class="no">' + n + '</span><span>' + hl(t) + '</span></div>';
+});
+$('code').innerHTML = html;
+
+let mode = 'lens', opened = false, cur = null;
+const canvas = initCanvas({world: $('world'), cv: $('cv'), fit: $('fit'), onSelect: k => choose(k, true)});
+
+function choose(k, fromCanvas) {
+	cur = k; canvas.select(k);
+	document.querySelectorAll('.l').forEach(l => { const r = BLOCKS[k].rng; l.classList.toggle('hot', !!r && +l.dataset.n >= r[0] && +l.dataset.n <= r[1]); });
+	const b = BLOCKS[k];
+	if (b.ext) { const rp = RANGE[k].split(' : '); $('stmsg').textContent = 'Opens ' + rp[0] + ':' + rp[1].split('-')[0] + ' in a new tab'; }
+	else {
+		$('stmsg').textContent = 'Ln ' + b.rng[0] + ' to ' + b.rng[1] + ' selected in orders.ts';
+		const row = document.querySelector('.l[data-n="' + b.rng[0] + '"]');
+		const sc = $('code').parentNode.querySelector('.code-in');
+		sc.scrollTo({top: Math.max(0, row.offsetTop - 60), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+	}
+	$('insp').innerHTML = '<div class="ih"><span class="bk">' + b.kind + '</span><span class="nm">' + b.name + '</span><span class="lc">' + RANGE[k] + '</span></div><div class="cols">' + usageHtml(k) + '</div>';
+}
+function openPanel() {
+	if (opened) return;
+	opened = true; $('main').classList.add('open'); clearPulse();
+	$('stmsg').textContent = 'Storyline opened beside orders.ts';
+	$('insp').innerHTML = '<div class="ph">Select a block, or click a line of code, to see where it comes up and how it is used.</div>';
+}
+function closePanel() { opened = false; $('main').classList.remove('open'); cur = null; document.querySelectorAll('.l').forEach(l => l.classList.remove('hot')); canvas.select(null); $('stmsg').textContent = 'Ready'; }
+function clearPulse() { document.querySelectorAll('.pulse').forEach(e => e.classList.remove('pulse')); $('ctx').hidden = true; }
+const HINT = {lens: 'Click "Show storyline" above any function or class.', key: 'Press ⌘⇧L (Ctrl+Shift+L). The button below stands in for the keys.', icon: 'Click the icon at the right of the tab bar.', ctx: 'Right click in the editor, then pick the menu item.', bar: 'Click "◇ Storyline" in the status bar.'};
+function setMode(m) {
+	mode = m; closePanel(); clearPulse();
+	document.querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+	$('hint').textContent = HINT[m];
+	if (m === 'lens') document.querySelectorAll('.lens b').forEach(b => b.classList.add('pulse'));
+	if (m === 'icon') $('ticon').classList.add('pulse');
+	if (m === 'bar') $('sbar').classList.add('pulse');
+	if (m === 'ctx') $('ctx').hidden = false, $('ctxit').classList.add('pulse');
+	if (m === 'key') { $('stmsg').textContent = 'Press ⌘⇧L'; }
+	$('keybtn').hidden = m !== 'key';
+}
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => setMode(b.dataset.m));
+document.querySelectorAll('[data-open="lens"]').forEach(b => b.onclick = openPanel);
+$('keybtn').onclick = openPanel; $('ticon').onclick = openPanel; $('sbar').onclick = openPanel; $('ctxit').onclick = openPanel;
+addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); openPanel(); } });
+document.querySelectorAll('.l').forEach(l => l.onclick = () => {
+	if (!opened) return;
+	const k = lineBlock(+l.dataset.n);
+	if (k) choose(k, false); else { $('stmsg').textContent = 'Line ' + l.dataset.n + ' is a type, not on the canvas in this demo'; }
+});
+setMode('lens');
+</script>

@@ -1,0 +1,32 @@
+{
+  "name": "code-blueprint",
+  "version": "0.0.0",
+  "private": true,
+  "description": "a live map of real code. plan a feature with Claude, then check what got built",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "blueprint": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "elkjs": "^0.12.0",
+    "typescript": "~5.9.3"
+  },
+  "devDependencies": {
+    "@blueprint/core": "workspace:*",
+    "@blueprint/ui": "workspace:*",
+    "playwright-core": "^1.64.0",
+    "tsup": "^8.5.1"
+  }
+}

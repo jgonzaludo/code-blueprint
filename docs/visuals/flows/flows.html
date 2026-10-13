@@ -1,0 +1,152 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root { --bg: #f4f6f9; --card: #fff; --ink: #14202c; --ink2: #38485a; --mut: #5b6b7b; --line: #cdd6df;
+	--blue: #1b6fc4; --blue-s: #dbe9f8; --grn: #1e8a4c; --grn-s: #dcf1e4; --amb: #a8740a; --amb-s: #f7ecd2; --red: #c23b3b; --red-s: #f8dede; --pur: #7b4fd0; --pur-s: #ebe3fa; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-size: 15px; }
+.d { width: 1400px; padding: 36px 40px 40px; background: var(--bg); }
+.d + .d { border-top: 8px solid #e3e8ee; }
+h2 { margin: 0 0 4px; font-size: 28px; letter-spacing: -.02em; }
+.sub { margin: 0 0 24px; color: var(--mut); max-width: 90ch; }
+code, .m { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+/* swimlanes */
+.lanes { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); }
+.lh { padding: 10px 14px; font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--line); background: #f8fafc; }
+.lh + .lh, .cell + .cell { border-left: 1px solid var(--line); }
+.row { display: contents; }
+.cell { padding: 8px 12px; min-height: 20px; border-top: 1px dashed #e4e9ef; }
+.st { border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; position: relative; }
+.st .n { position: absolute; left: -10px; top: -10px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.st b { display: block; font-size: 14.5px; margin-bottom: 2px; }
+.st p { margin: 0; color: var(--ink2); font-size: 13px; line-height: 1.4; }
+.st.y { border-color: var(--blue); background: var(--blue-s); } .st.c { border-color: var(--pur); background: var(--pur-s); }
+.st.w { border-color: var(--grn); background: var(--grn-s); } .st.mp { border-color: var(--amb); background: var(--amb-s); }
+.st.bad { border-color: var(--red); background: var(--red-s); }
+/* pipeline */
+.pipe { display: flex; align-items: stretch; gap: 0; flex-wrap: nowrap; }
+.pipe .st { flex: 1; }
+.ar { width: 46px; flex: none; display: grid; place-items: center; color: var(--mut); font-size: 26px; }
+.ar.v { width: auto; height: 34px; }
+.cap { color: var(--mut); font-size: 13px; margin-top: 18px; }
+/* tree */
+.tree { display: grid; grid-template-columns: 300px 46px 1fr 46px 1fr; gap: 14px 0; align-items: center; }
+.q { border: 2px solid var(--ink); border-radius: 12px; padding: 12px 14px; font-weight: 700; background: #fff; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 2px 9px; margin-right: 6px; letter-spacing: .03em; }
+.pill.live { background: var(--grn-s); color: var(--grn); } .pill.snap { background: var(--amb-s); color: var(--amb); } .pill.later { background: #eceff3; color: var(--mut); }
+/* arch */
+.box { border: 2px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; }
+.box > .t { font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--mut); margin-bottom: 12px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 34px; height: 0; border-top: 3px solid; display: inline-block; }
+</style></head><body>
+
+<!-- F1 -->
+<section class="d" id="f1">
+	<h2>Flow 1: Draft a feature with Claude (the main flow)</h2>
+	<p class="sub">Plan on the map first, approve, apply, then the parser checks what actually got built. Everything solid comes from the parser. Dashed means not on disk yet, or only claimed by Claude.</p>
+	<div class="lanes" style="grid-template-columns: repeat(4, 1fr)">
+		<div class="lh">You</div><div class="lh">Claude (via the Blueprint skill)</div><div class="lh">Blueprint watcher (local)</div><div class="lh">Map window (browser tab or TUI)</div>
+		<div class="row"><div class="cell"><div class="st y"><span class="n">1</span><b>Ask for a feature</b><p>"add refund support: refund a paid order, restock items, write an audit entry"</p></div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+		<div class="row"><div class="cell"></div><div class="cell"><div class="st c"><span class="n">2</span><b>Start the window if needed</b><p><code>blueprint status</code>, else <code>blueprint watch</code>. Browser auto-opens.</p></div></div><div class="cell"><div class="st w"><span class="n">3</span><b>Parse the repo</b><p>Blocks, exact lines, call arrows vs baseline (git HEAD).</p></div></div><div class="cell"><div class="st mp"><span class="n">4</span><b>Current map</b><p>Files zoomed out, real code zoomed in.</p></div></div></div>
+		<div class="row"><div class="cell"></div><div class="cell"><div class="st c"><span class="n">5</span><b>Write a draft, not the real files</b><p>Full proposed contents into <code>.blueprint/plans/refund-support/</code> plus <code>claims</code> for calls not written yet.</p></div></div><div class="cell"><div class="st w"><span class="n">6</span><b>Parse disk + draft overlay</b><p>Diff gives new blocks, exact changed lines, new arrows. Still parser-derived.</p></div></div><div class="cell"><div class="st mp"><span class="n">7</span><b>Plan view</b><p>New files in a band on top (dashed). Changed files badged. Zoom in: exact + and - lines, new slots. Dashed arrows.</p></div></div></div>
+		<div class="row"><div class="cell"><div class="st y"><span class="n">9</span><b>Review on the map, say "go"</b><p>Or push back: "don't touch orders.ts".</p></div></div><div class="cell"><div class="st c"><span class="n">8</span><b>Text summary in chat</b><p><code>blueprint plan show</code>: tree of new files, changed blocks with exact lines.</p></div></div><div class="cell"></div><div class="cell"></div></div>
+		<div class="row"><div class="cell"></div><div class="cell"><div class="st c"><span class="n">10</span><b>Apply</b><p>Edit the real files (or <code>blueprint plan apply</code>).</p></div></div><div class="cell"><div class="st w"><span class="n">11</span><b>Re-parse disk, run the check</b><p>Applied vs draft + claims: confirmed / missing / unplanned.</p></div></div><div class="cell"><div class="st mp"><span class="n">12</span><b>Applied view</b><p>Confirmed arrows go solid. Missing ones flagged "not in the code".</p></div></div></div>
+		<div class="row"><div class="cell"><div class="st y"><span class="n">14</span><b>Decide</b><p>Fix the code, or drop the arrow from the plan.</p></div></div><div class="cell"><div class="st c"><span class="n">13</span><b>Report honestly</b><p><code>blueprint check --json</code>: "9 of 10 confirmed. Not in the code: refundHandler -&gt; recordAudit."</p></div></div><div class="cell"></div><div class="cell"></div></div>
+	</div>
+	<div class="legend"><span><i class="sw" style="border-color:var(--ink);border-top-style:solid"></i>same, on disk</span><span><i class="sw" style="border-color:var(--grn);border-top-style:dashed"></i>proposed (draft, not on disk)</span><span><i class="sw" style="border-color:var(--grn)"></i>confirmed after applying</span><span><i class="sw" style="border-color:var(--red);border-top-style:dashed"></i>missing: not in the code</span><span><i class="sw" style="border-color:var(--amb)"></i>unplanned call</span></div>
+</section>
+
+<!-- F2 -->
+<section class="d" id="f2">
+	<h2>Flow 2: Live while you edit</h2>
+	<p class="sub">The window follows the repo. Nobody has to republish anything. This is why the watcher runs locally: that is where the files change.</p>
+	<div class="pipe">
+		<div class="st y"><b>Save a file</b><p>You or Claude, any editor.</p></div><div class="ar">&rarr;</div>
+		<div class="st w"><b>fs event</b><p>chokidar on the root + <code>.blueprint/plans</code>, gitignore respected.</p></div><div class="ar">&rarr;</div>
+		<div class="st w"><b>Debounce</b><p>100 to 200 ms so a burst of saves is one update.</p></div><div class="ar">&rarr;</div>
+		<div class="st w"><b>Incremental parse</b><p>Long-lived TS language service. Only changed files + dependents.</p></div><div class="ar">&rarr;</div>
+		<div class="st w"><b>Diff vs baseline</b><p>git HEAD by default. Block, line and arrow statuses.</p></div><div class="ar">&rarr;</div>
+		<div class="st mp"><b>Push over SSE</b><p><code>/api/events</code>. Map updates in place, layout never jumps.</p></div>
+	</div>
+	<p class="cap">Target: under about 300 ms from save to repaint on small repos. Existing files keep their positions; only new things get placed.</p>
+</section>
+
+<!-- F3 -->
+<section class="d" id="f3">
+	<h2>Flow 3: Which surface shows up where</h2>
+	<p class="sub">One core. The surface depends on where you are talking to Claude. Live always means a local watcher. Without access to your machine, the fallback is a snapshot.</p>
+	<div class="tree">
+		<div class="q">Claude Code (terminal, desktop app, or inside VS Code's terminal)</div><div class="ar">&rarr;</div>
+		<div class="st w"><span class="pill live">LIVE</span><b>Skill starts <code>blueprint watch</code></b><p>Background process on your machine. Serves the map on 127.0.0.1:4711.</p></div><div class="ar">&rarr;</div>
+		<div class="st mp"><b>Browser tab auto-opens</b><p>OS open command, like Vite. Optional: TUI in a split pane (<code>blueprint tui</code>). The desktop app's browser pane can also show it.</p></div>
+
+		<div class="q">Claude app, desktop linked to your computer</div><div class="ar">&rarr;</div>
+		<div class="st w"><span class="pill live">LIVE</span><b>Claude runs the watcher through its shell on your machine</b><p>Same as above, started remotely.</p></div><div class="ar">&rarr;</div>
+		<div class="st mp"><b>You open the localhost tab</b><p>The map lives in your browser, not in the chat.</p></div>
+
+		<div class="q">Claude app, cloud only (no linked computer)</div><div class="ar">&rarr;</div>
+		<div class="st c"><span class="pill snap">SNAPSHOT</span><b>Core runs in Claude's sandbox</b><p>Needs the code there: attached files or a cloned GitHub repo.</p></div><div class="ar">&rarr;</div>
+		<div class="st mp"><b>Published as an artifact</b><p><code>blueprint snapshot</code> to one HTML file. Republished to the same URL after the edit for the check. Not live between turns.</p></div>
+
+		<div class="q">Plain VS Code, Cursor, Windsurf user</div><div class="ar">&rarr;</div>
+		<div class="st w"><span class="pill live">LIVE</span><b>Browser tab next to the editor</b><p>Click a block: server runs <code>code -g file:line</code> to jump.</p></div><div class="ar">&rarr;</div>
+		<div class="st"><span class="pill later">LATER</span><b>Extension (polish only)</b><p>Webview panel, CodeLens, inline proposed diffs. Only if people ask.</p></div>
+	</div>
+</section>
+
+<!-- F4 -->
+<section class="d" id="f4">
+	<h2>Architecture</h2>
+	<p class="sub">Everything runs locally. The core is pure functions over an injectable file system, so the same code runs in the CLI, in Claude's sandbox and in tests.</p>
+	<div class="box">
+		<div class="t">Your machine</div>
+		<div class="pipe" style="gap:0">
+			<div class="st y" style="flex:.8"><b>Files on disk</b><p>Edited by you or Claude in any editor.</p><p style="margin-top:8px"><b style="display:inline">.blueprint/plans/</b> drafts + claims</p></div><div class="ar">&rarr;</div>
+			<div class="st w" style="flex:1.2"><b>Watcher</b> <span class="m">code-blueprint</span><p>fs events, debounce, git HEAD baseline cache.</p></div><div class="ar">&rarr;</div>
+			<div class="st w" style="flex:1.5"><b>Core</b> <span class="m">@blueprint/core</span><p><code>parse(root, overlay?)</code> &rarr; Graph<br>TS 5.x program / language service<br>blocks, exact lines, call edges, file edges<br><code>diff</code>, <code>plan</code>, <code>check</code></p></div><div class="ar">&rarr;</div>
+			<div class="st w" style="flex:1.2"><b>Server</b><p>127.0.0.1:4711, Host check + URL token<br><code>/api/graph</code> <code>/api/events</code> (SSE)<br><code>/api/plan</code> <code>/api/open</code></p></div><div class="ar">&rarr;</div>
+			<div class="st mp"><b>Map UI</b> <span class="m">@blueprint/ui</span><p>Browser tab. TUI later.</p></div>
+		</div>
+		<div class="grid3" style="margin-top:18px">
+			<div class="st c"><b>Claude Code skill</b><p>SKILL.md: start watcher, <code>print</code>, <code>plan new/add/show</code>, <code>check --json</code>. Never states an arrow the parser didn't produce.</p></div>
+			<div class="st c"><b>Claude app skill</b><p>Runs core in the sandbox, <code>snapshot</code> to one HTML file, publishes as an artifact. No watcher.</p></div>
+			<div class="st"><b>Later</b><p>TUI (<code>ink</code>), VS Code extension (webview + CodeLens), MCP wrapper, tree-sitter languages labeled lower confidence.</p></div>
+		</div>
+	</div>
+</section>
+
+<!-- F5 -->
+<section class="d" id="f5">
+	<h2>Flow 4: Plan protocol and the check</h2>
+	<p class="sub">Plans are drafts the parser can read, so even proposed arrows are parser-derived. Only intent Claude didn't write yet is a "claim".</p>
+	<div class="pipe">
+		<div class="st c"><b>plan new</b><p><code>.blueprint/plans/&lt;id&gt;/plan.json</code><br>id, title, files, delete, claims</p></div><div class="ar">&rarr;</div>
+		<div class="st c"><b>plan add</b><p>Full proposed file contents into <code>plans/&lt;id&gt;/files/&lt;path&gt;</code></p></div><div class="ar">&rarr;</div>
+		<div class="st w"><b>Overlay parse</b><p><code>parse(root, overlay = draft)</code><br>diff(disk, draft)</p></div><div class="ar">&rarr;</div>
+		<div class="st mp"><b>Plan view</b><p>Dashed: proposed. Hollow arrowhead: claim.</p></div><div class="ar">&rarr;</div>
+		<div class="st y"><b>Apply</b><p>Real edits, or <code>plan apply</code></p></div><div class="ar">&rarr;</div>
+		<div class="st w"><b>check</b><p>applied graph vs draft graph + claims</p></div>
+	</div>
+	<div class="grid3" style="margin-top:22px">
+		<div class="st w"><b>confirmed</b><p>In draft or claims, and in the applied code. Drawn solid green.</p></div>
+		<div class="st bad"><b>missing: "not in the code"</b><p>In draft or claims, not in the applied code. Red dashed with a label. Demo: <code>refundHandler -&gt; recordAudit</code>.</p></div>
+		<div class="st mp"><b>unplanned</b><p>In the applied code, touching planned files, but in neither draft nor claims. Amber.</p></div>
+	</div>
+</section>
+
+<!-- F6 -->
+<section class="d" id="f6">
+	<h2>Semantic zoom: one canvas, three levels</h2>
+	<p class="sub">Camera is translate + scale on one world. Level of detail switches on scale, so zooming out never shows unreadable code and zooming in never shows summaries.</p>
+	<div class="pipe">
+		<div class="st mp"><b>Project map</b> <span class="m">scale &lt; 0.5</span><p>File cards as labeled silhouettes, badges (NEW, ~modified, used by new code), file-to-file arrows. New files in a band on top.</p></div><div class="ar">&harr;</div>
+		<div class="st mp"><b>File</b> <span class="m">0.5 to 0.95</span><p>Blocks inside each file, kind + name headers, block-to-block arrows from the calling line to the declaration line.</p></div><div class="ar">&harr;</div>
+		<div class="st mp"><b>Code, line for line</b> <span class="m">&ge; 0.95</span><p>Exact source with old/new line numbers, + and - lines highlighted, new slots inside existing classes.</p></div>
+	</div>
+	<p class="cap">Controls: drag to pan, Ctrl or Cmd + wheel to zoom at the cursor, double click a file to zoom to it, click a block to select and zoom (inspector shows Used by / Uses). Zoom limits 0.12 to 2.2. See screenshots 01 to 07.</p>
+</section>
+</body></html>

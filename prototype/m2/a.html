@@ -1,0 +1,95 @@
+<title>Plan Map in Claude Code</title>
+<style>
+/*PM_CSS*/
+/*TERM_CSS*/
+.tbody { padding: 14px 16px 18px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; overflow-x: auto; }
+.tbody pre { margin: 0; font: inherit; white-space: pre; }
+.sl { opacity: 0; animation: show .35s forwards; animation-delay: calc(var(--i) * .22s); margin-bottom: 8px; }
+@keyframes show { to { opacity: 1; } }
+.usr b { color: var(--t-dim); font-weight: 500; }
+.tool .dot { color: var(--t-green); } .res { color: var(--t-dim); padding-left: 2ch; } .say { padding-left: 2ch; } .say .dot { margin-left: -2ch; display: inline-block; width: 2ch; }
+.tree { padding-left: 2ch; }
+.add { color: var(--t-green); background: color-mix(in srgb, var(--t-green) 12%, transparent); display: block; }
+.del { color: var(--t-red); background: color-mix(in srgb, var(--t-red) 12%, transparent); display: block; }
+.link { color: var(--t-blue); text-decoration: underline; text-underline-offset: 2px; }
+.box { margin-top: 12px; border: 1px solid var(--t-line); border-radius: 8px; padding: 6px 10px; color: var(--t-dim); } .box b { color: var(--t-ink); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { .sl { animation: none; opacity: 1; } }
+</style>
+<div class="app">
+	<header class="top">
+		<h1>Plan Map in Claude Code</h1>
+		<p>Nothing pops up. You ask for a feature, Claude calls the tool, and the plan arrives as text in the same session: new files first, changed blocks with their exact lines, and a check after the edit. The zoomable map is one link away.</p>
+	</header>
+	<div class="segb" role="tablist"><button class="on" data-s="plan" role="tab">1. Claude proposes</button><button data-s="apply" role="tab">2. After the edit</button></div>
+	<div class="term"><div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>claude  ~/shop</span></div><div class="tbody" id="tb"></div></div>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>The plan in the place you already read. New files on top, then each changed block with its real before and after lines, and which existing code the new code leans on.</p></div>
+		<div class="note"><h3>What you give up</h3><p>No zooming or dragging in a text session. The map link opens the same plan on the canvas.</p></div>
+		<div class="note"><h3>The part that matters</h3><p>Claude's arrows are claims. After the edit the parser re-reads the code and says which ones are real. One of ten fails here, on purpose.</p></div>
+	</div>
+	<p class="foot">Mock session. The files, blocks, line numbers, diff lines and arrows are computed from a real type-checked mini project. The conversation text and the plan arrow that fails the check are staged.</p>
+</div>
+<script type="application/json" id="data">__DATA__</script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const D = JSON.parse($('data').textContent), B = D.blocks;
+const nm = id => id.split('::')[1], base = f => f.split('/').pop();
+const outs = id => D.edges.filter(e => e.from === id).map(e => nm(e.to));
+const diffRows = (f, a, b) => D.ftext[f].filter(x => x.d !== ' ' && ((x.n || x.o) >= a && (x.n || x.o) <= b || x.d === '-' && x.o >= a - 1 && x.o <= b + 1))
+	.map(x => '<span class="' + (x.d === '+' ? 'add' : 'del') + '">' + String(x.d === '+' ? x.n : x.o).padStart(4) + ' ' + x.d + '  ' + esc(x.t) + '</span>').join('');
+const newBl = f => Object.values(B).filter(b => b.file === f && b.kind !== 'imports' && b.status === 'new');
+const arrowsOf = f => newBl(f).map(b => {
+	const o = outs(b.id).slice(); if (b.name === 'refundHandler') o.push('<span class="t-dim">recordAudit?</span>');
+	return '    <span class="t-grn">+</span> ' + esc(b.name).padEnd(21) + ' <span class="t-dim">-&gt;</span> ' + o.map(x => x.startsWith('<') ? x : '<span class="t-blue">' + x + '</span>').join(', ');
+}).join('\n');
+const newFiles = Object.keys(D.fstat).filter(f => D.fstat[f] === 'new');
+const modB = Object.values(B).filter(b => b.status === 'mod');
+function planTree() {
+	let h = '<span class="t-yel">PLAN  refund support</span>  <span class="t-dim">proposed, nothing written yet</span>\n\n';
+	newFiles.forEach(f => { h += '<span class="t-grn">+ ' + f + '</span>  <span class="t-dim">NEW</span>\n' + arrowsOf(f) + '\n'; });
+	h += '\n<span class="t-yel">~ src/orders.ts</span>  <span class="t-dim">MODIFIED, 2 blocks</span>\n';
+	modB.forEach(b => {
+		const ns = b.lines.filter(l => l.n).map(l => l.n), a = Math.min(...ns), z = Math.max(...ns);
+		h += '    <span class="t-yel">~</span> ' + b.name + '  <span class="t-dim">lines ' + a + '-' + z + '</span>\n';
+		h += diffRows('src/orders.ts', a, z).replace(/<span class="(add|del)">/g, '<span class="$1">    ') + '\n';
+	});
+	h = h.replace(/\n\n+/g, '\n\n');
+	h += '\n  <span class="t-dim">used by the new code, unchanged:  utils/money.ts, audit/log.ts</span>';
+	return h;
+}
+function applyTree() {
+	const ok = D.edges.filter(e => e.status === 'new'), n = ok.length;
+	let h = '<span class="t-yel">CHECK  parser re-read the code</span>\n\n';
+	h += '<span class="t-grn">' + n + ' of ' + (n + 1) + ' proposed arrows confirmed</span>\n';
+	ok.forEach(e => { h += '  <span class="t-grn">[ok]</span> ' + base(e.from.split('::')[0]) + ' ' + nm(e.from) + ' <span class="t-dim">-&gt;</span> ' + nm(e.to) + '\n'; });
+	h += '  <span class="t-red">[x]</span>  refundHandler.ts refundHandler <span class="t-dim">-&gt;</span> recordAudit  <span class="t-red">not in the code</span>';
+	return h;
+}
+const cnt = (f, d) => D.ftext[f].filter(x => x.d === d).length;
+const SC = {
+plan: [
+ '<div class="usr"><b>&gt;</b> add refund support. Refund a paid order, put its items back in stock, and write an audit entry.</div>',
+ '<div class="tool"><span class="dot">●</span> storyline<span class="t-dim">(plan: "refund support")</span></div><div class="res">⎿  2 new files, 1 file changed (2 blocks), 2 unchanged files used. 10 proposed arrows</div>',
+ '<div class="say"><span class="dot">●</span>Here is the plan. Nothing is written yet. Dashed arrows are my claims about what will call what.</div>',
+ '<pre class="tree">' + planTree() + '</pre>',
+ '<div class="say">Say go and I will write it. I will check my arrows against the code afterwards.</div>',
+ '<div class="box"><b>Map</b>  <span class="link">.storyline/plan.html</span>  <span class="t-dim">cmd+click. New files sit above the project, zoom in for exact lines</span></div>'
+],
+apply: [
+ '<div class="usr"><b>&gt;</b> go</div>',
+ '<div class="tool"><span class="dot">●</span> Write<span class="t-dim">(src/refunds.ts)</span></div><div class="res">⎿  +' + cnt('src/refunds.ts', '+') + ' lines</div>',
+ '<div class="tool"><span class="dot">●</span> Write<span class="t-dim">(src/api/refundHandler.ts)</span></div><div class="res">⎿  +' + cnt('src/api/refundHandler.ts', '+') + ' lines</div>',
+ '<div class="tool"><span class="dot">●</span> Update<span class="t-dim">(src/orders.ts)</span></div><div class="res">⎿  +' + cnt('src/orders.ts', '+') + ' -' + cnt('src/orders.ts', '-') + ' lines</div>',
+ '<div class="tool"><span class="dot">●</span> storyline<span class="t-dim">(check: true)</span></div><div class="res">⎿  parser re-read 3 files, compared with the plan</div>',
+ '<pre class="tree">' + applyTree() + '</pre>',
+ '<div class="say"><span class="dot">●</span>Written. One arrow did not survive: I planned a "refund.requested" audit line in the handler and never wrote it. Add it, or drop it from the plan?</div>',
+ '<div class="box"><b>Map</b>  <span class="link">.storyline/plan.html</span>  <span class="t-dim">solid arrows are confirmed, the failed one is flagged</span></div>'
+]};
+function show(k) {
+	$('tb').innerHTML = SC[k].map((h, i) => '<div class="sl" style="--i:' + i + '">' + h + '</div>').join('');
+	document.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === k));
+}
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => show(b.dataset.s));
+show('plan');
+</script>

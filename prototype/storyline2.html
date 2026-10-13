@@ -1,0 +1,684 @@
+<title>Storyline Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: the flat file on the left, the same blocks on a canvas on the right.
+   Blocks keep their real code, arrows start on the exact line that makes the call, and the
+   inspector under the canvas answers "where is this used" for whatever is selected. */
+:root {
+	--bg: #eef1f5;
+	--surface: #ffffff;
+	--surface-2: #f3f6f9;
+	--canvas: #f7f9fb;
+	--dot: #d3dbe4;
+	--ink: #14202c;
+	--ink-2: #38485a;
+	--muted: #5b6b7b;
+	--line: #cdd6df;
+	--accent: #1b6fc4;
+	--accent-soft: #dbe9f8;
+	--blue: #1b86c9;
+	--teal: #168a80;
+	--purple: #7b4fd0;
+	--orange: #c4570b;
+	--syn-kw: #a02f9c; --syn-str: #b4530b; --syn-ty: #0b7a75; --syn-fn: #85650a; --syn-num: #1a6fb5; --syn-cm: #6b7b8a;
+	--shadow: 0 1px 2px rgba(20, 32, 44, .08), 0 6px 18px rgba(20, 32, 44, .06);
+	--font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+		--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+		--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57;
+		--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-ty: #5fd6c8; --syn-fn: #e8c75a; --syn-num: #6ab8ff; --syn-cm: #7a8b9b;
+		--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+	--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+	--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57;
+	--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-ty: #5fd6c8; --syn-fn: #e8c75a; --syn-num: #6ab8ff; --syn-cm: #7a8b9b;
+	--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, .blk:focus-visible, .cnt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); }
+
+.app { max-width: 1680px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 40px; display: flex; flex-direction: column; gap: 14px; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 24px; }
+.top h1 { margin: 0; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; font-weight: 700; text-wrap: balance; }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 72ch; }
+.pill { font-family: var(--font-mono); font-size: 12px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2); white-space: nowrap; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 11px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.on { background: var(--accent-soft); border-color: var(--accent); }
+.btn.sm { padding: 3px 8px; font-size: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 6px 12px; font-size: 13px; font-weight: 500; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+
+.work { display: grid; grid-template-columns: minmax(300px, 0.72fr) minmax(0, 2fr); gap: 14px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; overflow: hidden; }
+.ph { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.ph h2 { margin: 0; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* flat file */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 0; }
+.tab { font-family: var(--font-mono); font-size: 11.5px; border: 1px solid var(--line); border-bottom: 0; border-radius: 7px 7px 0 0; background: var(--surface-2); padding: 4px 9px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.tab.on { background: var(--canvas); color: var(--ink); font-weight: 600; }
+.tab i { font-style: normal; font-family: var(--font-ui); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--orange); }
+.hint { margin: 0; padding: 7px 12px; font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.file { height: 600px; overflow: auto; background: var(--canvas); font-family: var(--font-mono); font-size: 12px; line-height: 20px; padding-block: 6px; }
+.fl { display: flex; white-space: pre; height: 20px; cursor: default; border-left: 3px solid transparent; }
+.fl .ln { flex: none; width: 40px; text-align: right; padding-right: 10px; color: var(--muted); user-select: none; }
+.fl[data-b] { cursor: pointer; border-left-color: color-mix(in srgb, var(--k) 70%, transparent); }
+.fl[data-b]:hover { background: color-mix(in srgb, var(--k) 8%, transparent); }
+.fl.sel { background: color-mix(in srgb, var(--k) 20%, transparent); }
+.fl.off .tx { opacity: .35; }
+.fl.ign .tx { opacity: .35; text-decoration: line-through; }
+
+/* canvas */
+.viewport { position: relative; height: 600px; overflow: auto; background-color: var(--canvas); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; }
+.sizer { position: relative; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.arrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 0; }
+.blk, .cnt { position: absolute; z-index: 1; }
+.blk { background: var(--surface); border: 1.5px solid var(--k); border-radius: 9px; overflow: hidden; }
+.blk.ext { border-style: dashed; --k: var(--orange); }
+.k-function, .k-method, .k-constructor { --k: var(--blue); }
+.k-interface, .k-type { --k: var(--teal); }
+.k-class { --k: var(--purple); }
+.blk.ext.k-function { --k: var(--orange); }
+.bh { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 9px; background: color-mix(in srgb, var(--k) 12%, var(--surface)); cursor: grab; user-select: none; }
+.blk.ext .bh { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--k) 14%, transparent) 6px 12px), color-mix(in srgb, var(--k) 8%, var(--surface)); }
+.bh .bk { font-family: var(--font-mono); font-size: 10.5px; color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); border-radius: 4px; padding: 0 5px; line-height: 16px; }
+.bh .bn { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh .ex { margin-left: auto; }
+.nodrag .bh { cursor: pointer; }
+.bo { height: 22px; line-height: 22px; padding: 0 9px; font-family: var(--font-mono); font-size: 11px; color: var(--orange); border-top: 1px dashed color-mix(in srgb, var(--k) 50%, transparent); background: color-mix(in srgb, var(--k) 6%, var(--surface)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb { max-height: 340px; overflow: auto; padding: 6px 0 8px; font-family: var(--font-mono); font-size: 11.5px; }
+.blk.open .bb { max-height: none; }
+.rows { width: max-content; min-width: 100%; }
+.r { display: flex; height: 18px; line-height: 18px; white-space: pre; }
+.r .g { flex: none; width: 30px; text-align: right; padding-right: 9px; color: var(--muted); opacity: .7; user-select: none; }
+.bf { padding: 4px 9px 6px; font-size: 11px; color: var(--muted); border-top: 1px dashed var(--line); }
+.cnt { border: 1.5px solid var(--purple); border-radius: 12px; background: color-mix(in srgb, var(--purple) 6%, transparent); }
+.cnt > .bh { border-radius: 10px 10px 0 0; height: 34px; background: color-mix(in srgb, var(--purple) 14%, var(--surface)); }
+.cnt > .bh .bk { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 40%, transparent); }
+.blk.sel, .cnt.sel > .bh { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 35%, transparent); }
+.cnt.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--purple) 30%, transparent); }
+.dim { opacity: .38; }
+.tr, .blk { transition: none; }
+.anim .blk.top, .anim .cnt { transition: left .38s ease, top .38s ease; }
+.dragging { cursor: grabbing !important; }
+.kw { color: var(--syn-kw); } .st { color: var(--syn-str); } .ty { color: var(--syn-ty); } .fn { color: var(--syn-fn); } .nu { color: var(--syn-num); } .cm { color: var(--syn-cm); font-style: italic; }
+
+.ar { fill: none; stroke-width: 1.7; opacity: .85; }
+.ar.call { stroke: var(--blue); }
+.ar.type { stroke: var(--purple); stroke-dasharray: 2 5; stroke-linecap: round; stroke-width: 1.8; opacity: .7; }
+.ar.hot { opacity: 1; stroke-width: 2.6; }
+.ar.cool { opacity: .12; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); align-items: center; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend svg { width: 28px; height: 8px; overflow: visible; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+
+/* inspector */
+.insp { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.ih { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.ih h3 { margin: 0; font-family: var(--font-mono); font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.chipk { font-family: var(--font-mono); font-size: 11px; color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); border-radius: 4px; padding: 0 6px; }
+.loc { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.tag-ext { font-size: 11px; border: 1px dashed var(--orange); color: var(--orange); border-radius: 999px; padding: 0 8px; font-family: var(--font-mono); }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cols h4 { margin: 0 0 5px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.refs { display: flex; flex-wrap: wrap; gap: 5px; }
+.ref { font-family: var(--font-mono); font-size: 12px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 2px 8px; display: inline-flex; gap: 6px; align-items: baseline; }
+.ref:hover { border-color: var(--k, var(--accent)); }
+.ref small { color: var(--muted); font-size: 10.5px; }
+.ref.t { border-style: dotted; }
+.none { color: var(--muted); font-size: 12.5px; }
+.sumbox { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.sumbox.empty2 { border-style: dashed; background: transparent; color: var(--muted); }
+.sumbox .src { display: block; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+.sumbox p { margin: 0; max-width: 78ch; text-wrap: pretty; }
+.note { font-size: 12px; color: var(--muted); max-width: 100ch; }
+
+@media (max-width: 1000px) {
+	.work { grid-template-columns: minmax(0, 1fr); }
+	.cols { grid-template-columns: minmax(0, 1fr); }
+	.file { height: 420px; }
+	.viewport { height: 520px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.anim .blk.top, .anim .cnt { transition: none; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<defs>
+		<marker id="m-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,1 L10,5 L0,9 z" style="fill:var(--blue)"/></marker>
+		<marker id="m-type" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,1 L10,5 L0,9 z" style="fill:var(--purple)"/></marker>
+	</defs>
+</svg>
+
+<div class="app">
+	<header class="top">
+		<div>
+			<h1>Storyline Canvas</h1>
+			<p>One file, cut into its real blocks. Drag them, follow the arrows from the line that makes the call, and compare with the flat file beside it.</p>
+		</div>
+		<div class="tools"><span class="pill" id="pFile"></span><span class="pill" id="pCount"></span></div>
+	</header>
+
+	<div class="work">
+		<section class="panel" aria-label="Flat file">
+			<div class="ph">
+				<h2>Flat file</h2>
+				<div class="seg" role="group" aria-label="Click behaviour">
+					<button type="button" data-mode="picker">Picker</button>
+					<button type="button" data-mode="ignore">Ignore</button>
+					<button type="button" data-mode="all" class="on">All</button>
+				</div>
+			</div>
+			<p class="hint" id="hint"></p>
+			<div class="tabs" id="tabs"></div>
+			<div class="file" id="file" tabindex="0" aria-label="Source file"></div>
+		</section>
+
+		<section class="panel" aria-label="Storyline canvas">
+			<div class="ph">
+				<div class="tools">
+					<div class="seg" role="group" aria-label="Layout">
+						<button type="button" data-layout="story" class="on">Storyline</button>
+						<button type="button" data-layout="order">File order</button>
+					</div>
+					<button type="button" class="btn sm" id="links">Data links</button>
+				</div>
+				<div class="tools">
+					<button type="button" class="btn sm" id="zout" aria-label="Zoom out">-</button>
+					<span class="mono" id="zval" style="min-width:3.2em;text-align:center">100%</span>
+					<button type="button" class="btn sm" id="zin" aria-label="Zoom in">+</button>
+					<button type="button" class="btn sm" id="fit">Fit</button>
+				</div>
+			</div>
+			<div class="viewport" id="viewport">
+				<div class="sizer" id="sizer"><div class="world" id="world"><svg class="arrows" id="arrows" aria-hidden="true"></svg><div id="blocks"></div></div></div>
+			</div>
+			<div class="insp" id="insp"></div>
+		</section>
+	</div>
+
+	<div class="legend" aria-label="Legend">
+		<span><svg viewBox="0 0 28 8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--blue)" stroke-width="2"/></svg>call or read, drawn from the calling line</span>
+		<span><svg viewBox="0 0 28 8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--purple)" stroke-width="2" stroke-dasharray="2 5" stroke-linecap="round"/></svg>data and type link</span>
+		<span><svg viewBox="0 0 28 8"><rect x="1" y="1" width="26" height="6" rx="2" fill="none" stroke="var(--orange)" stroke-dasharray="4 3"/></svg>defined in another file</span>
+	</div>
+	<p class="note">Demo file recreated from the order example in James's reel. The two imported files, src/utils/money.ts and src/audit/log.ts, and the two lines that call them, are made up so there is something to import. Edges come from the TypeScript type checker. Summaries labelled Claude were written for this demo and are not generated live.</p>
+</div>
+
+<script type="application/json" id="data">{"main":"src/orders.ts","files":{"src/audit/log.ts":"interface AuditEntry {\n  action: string;\n  orderId: string;\n  at: string;\n}\n\nexport function recordAudit(action: string, orderId: string): void {\n  const entry: AuditEntry = {\n    action,\n    orderId,\n    at: new Date().toISOString(),\n  };\n\n  console.log(JSON.stringify(entry));\n}\n","src/utils/money.ts":"// Rounds to whole cents so floating point sums don't leak into totals.\nexport function roundMoney(amount: number): number {\n  return Math.round((amount + Number.EPSILON) * 100) / 100;\n}\n","src/orders.ts":"import { roundMoney } from \"./utils/money\";\nimport { recordAudit } from \"./audit/log\";\n\ntype OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"cancelled\";\n\ninterface Product {\n  id: string;\n  name: string;\n  price: number;\n  stock: number;\n}\n\ninterface OrderItem {\n  productId: string;\n  quantity: number;\n}\n\ninterface Order {\n  id: string;\n  items: OrderItem[];\n  status: OrderStatus;\n  total: number;\n}\n\nclass Inventory {\n  constructor(private products: Map\u003cstring, Product>) {}\n\n  getProduct(id: string): Product {\n    const product = this.products.get(id);\n\n    if (!product) {\n      throw new Error(`Unknown product: ${id}`);\n    }\n\n    return product;\n  }\n\n  reserve(productId: string, quantity: number): void {\n    const product = this.getProduct(productId);\n\n    if (product.stock \u003c quantity) {\n      throw new Error(`Insufficient stock for ${product.name}`);\n    }\n\n    product.stock -= quantity;\n  }\n}\n\nfunction calculateOrderTotal(\n  items: OrderItem[],\n  inventory: Inventory\n): number {\n  return roundMoney(items.reduce((total, item) => {\n    const product = inventory.getProduct(item.productId);\n    return total + product.price * item.quantity;\n  }, 0));\n}\n\nfunction reserveOrderStock(\n  order: Order,\n  inventory: Inventory\n): void {\n  for (const item of order.items) {\n    inventory.reserve(item.productId, item.quantity);\n  }\n}\n\nfunction processOrder(\n  order: Order,\n  inventory: Inventory\n): Order {\n  if (order.status !== \"pending\") {\n    throw new Error(\"Only pending orders can be processed\");\n  }\n\n  order.total = calculateOrderTotal(order.items, inventory);\n\n  reserveOrderStock(order, inventory);\n\n  order.status = \"paid\";\n  recordAudit(\"order.paid\", order.id);\n\n  return order;\n}\n"},"blocks":[{"id":"src/audit/log.ts::recordAudit","kind":"function","name":"recordAudit","parent":null,"file":"src/audit/log.ts","start":7,"end":15,"code":"export function recordAudit(action: string, orderId: string): void {\n  const entry: AuditEntry = {\n    action,\n    orderId,\n    at: new Date().toISOString(),\n  };\n\n  console.log(JSON.stringify(entry));\n}","external":true,"alsoUses":["AuditEntry"]},{"id":"src/utils/money.ts::roundMoney","kind":"function","name":"roundMoney","parent":null,"file":"src/utils/money.ts","start":1,"end":4,"code":"// Rounds to whole cents so floating point sums don't leak into totals.\nexport function roundMoney(amount: number): number {\n  return Math.round((amount + Number.EPSILON) * 100) / 100;\n}","external":true,"alsoUses":[]},{"id":"src/orders.ts::OrderStatus","kind":"type","name":"OrderStatus","parent":null,"file":"src/orders.ts","start":4,"end":4,"code":"type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"cancelled\";","external":false},{"id":"src/orders.ts::Product","kind":"interface","name":"Product","parent":null,"file":"src/orders.ts","start":6,"end":11,"code":"interface Product {\n  id: string;\n  name: string;\n  price: number;\n  stock: number;\n}","external":false},{"id":"src/orders.ts::OrderItem","kind":"interface","name":"OrderItem","parent":null,"file":"src/orders.ts","start":13,"end":16,"code":"interface OrderItem {\n  productId: string;\n  quantity: number;\n}","external":false},{"id":"src/orders.ts::Order","kind":"interface","name":"Order","parent":null,"file":"src/orders.ts","start":18,"end":23,"code":"interface Order {\n  id: string;\n  items: OrderItem[];\n  status: OrderStatus;\n  total: number;\n}","external":false},{"id":"src/orders.ts::Inventory","kind":"class","name":"Inventory","parent":null,"file":"src/orders.ts","start":25,"end":47,"code":"class Inventory {\n  constructor(private products: Map\u003cstring, Product>) {}\n\n  getProduct(id: string): Product {\n    const product = this.products.get(id);\n\n    if (!product) {\n      throw new Error(`Unknown product: ${id}`);\n    }\n\n    return product;\n  }\n\n  reserve(productId: string, quantity: number): void {\n    const product = this.getProduct(productId);\n\n    if (product.stock \u003c quantity) {\n      throw new Error(`Insufficient stock for ${product.name}`);\n    }\n\n    product.stock -= quantity;\n  }\n}","external":false},{"id":"src/orders.ts::Inventory.constructor","kind":"constructor","name":"constructor","parent":"src/orders.ts::Inventory","file":"src/orders.ts","start":26,"end":26,"code":"constructor(private products: Map\u003cstring, Product>) {}","external":false},{"id":"src/orders.ts::Inventory.getProduct","kind":"method","name":"getProduct","parent":"src/orders.ts::Inventory","file":"src/orders.ts","start":28,"end":36,"code":"getProduct(id: string): Product {\n  const product = this.products.get(id);\n\n  if (!product) {\n    throw new Error(`Unknown product: ${id}`);\n  }\n\n  return product;\n}","external":false},{"id":"src/orders.ts::Inventory.reserve","kind":"method","name":"reserve","parent":"src/orders.ts::Inventory","file":"src/orders.ts","start":38,"end":46,"code":"reserve(productId: string, quantity: number): void {\n  const product = this.getProduct(productId);\n\n  if (product.stock \u003c quantity) {\n    throw new Error(`Insufficient stock for ${product.name}`);\n  }\n\n  product.stock -= quantity;\n}","external":false},{"id":"src/orders.ts::calculateOrderTotal","kind":"function","name":"calculateOrderTotal","parent":null,"file":"src/orders.ts","start":49,"end":57,"code":"function calculateOrderTotal(\n  items: OrderItem[],\n  inventory: Inventory\n): number {\n  return roundMoney(items.reduce((total, item) => {\n    const product = inventory.getProduct(item.productId);\n    return total + product.price * item.quantity;\n  }, 0));\n}","external":false},{"id":"src/orders.ts::reserveOrderStock","kind":"function","name":"reserveOrderStock","parent":null,"file":"src/orders.ts","start":59,"end":66,"code":"function reserveOrderStock(\n  order: Order,\n  inventory: Inventory\n): void {\n  for (const item of order.items) {\n    inventory.reserve(item.productId, item.quantity);\n  }\n}","external":false},{"id":"src/orders.ts::processOrder","kind":"function","name":"processOrder","parent":null,"file":"src/orders.ts","start":68,"end":84,"code":"function processOrder(\n  order: Order,\n  inventory: Inventory\n): Order {\n  if (order.status !== \"pending\") {\n    throw new Error(\"Only pending orders can be processed\");\n  }\n\n  order.total = calculateOrderTotal(order.items, inventory);\n\n  reserveOrderStock(order, inventory);\n\n  order.status = \"paid\";\n  recordAudit(\"order.paid\", order.id);\n\n  return order;\n}","external":false}],"edges":[{"from":"src/orders.ts::Order","to":"src/orders.ts::OrderItem","type":"type","lines":[20]},{"from":"src/orders.ts::Order","to":"src/orders.ts::OrderStatus","type":"type","lines":[21]},{"from":"src/orders.ts::Inventory.constructor","to":"src/orders.ts::Product","type":"type","lines":[26]},{"from":"src/orders.ts::Inventory.getProduct","to":"src/orders.ts::Product","type":"type","lines":[28]},{"from":"src/orders.ts::Inventory.getProduct","to":"src/orders.ts::Inventory.constructor","type":"uses","lines":[29]},{"from":"src/orders.ts::Inventory.reserve","to":"src/orders.ts::Inventory.getProduct","type":"calls","lines":[39]},{"from":"src/orders.ts::calculateOrderTotal","to":"src/orders.ts::OrderItem","type":"type","lines":[50]},{"from":"src/orders.ts::calculateOrderTotal","to":"src/orders.ts::Inventory","type":"type","lines":[51]},{"from":"src/orders.ts::calculateOrderTotal","to":"src/utils/money.ts::roundMoney","type":"calls","lines":[53]},{"from":"src/orders.ts::calculateOrderTotal","to":"src/orders.ts::Inventory.getProduct","type":"calls","lines":[54]},{"from":"src/orders.ts::reserveOrderStock","to":"src/orders.ts::Order","type":"type","lines":[60]},{"from":"src/orders.ts::reserveOrderStock","to":"src/orders.ts::Inventory","type":"type","lines":[61]},{"from":"src/orders.ts::reserveOrderStock","to":"src/orders.ts::Inventory.reserve","type":"calls","lines":[64]},{"from":"src/orders.ts::processOrder","to":"src/orders.ts::Order","type":"type","lines":[69,71]},{"from":"src/orders.ts::processOrder","to":"src/orders.ts::Inventory","type":"type","lines":[70]},{"from":"src/orders.ts::processOrder","to":"src/orders.ts::calculateOrderTotal","type":"calls","lines":[76]},{"from":"src/orders.ts::processOrder","to":"src/orders.ts::reserveOrderStock","type":"calls","lines":[78]},{"from":"src/orders.ts::processOrder","to":"src/audit/log.ts::recordAudit","type":"calls","lines":[81]}],"sums":{"src/orders.ts::processOrder":"Entry point of the file. Rejects any order that isn't pending, totals it with calculateOrderTotal, reserves stock with reserveOrderStock, marks the order paid, writes an audit line with recordAudit (defined in src/audit/log.ts), and returns the order. Nothing else in this file calls it.","src/orders.ts::calculateOrderTotal":"Adds up price * quantity for each item, looking each product up through Inventory.getProduct, then rounds the result with roundMoney (from src/utils/money.ts). Called once, from processOrder.","src/orders.ts::reserveOrderStock":"Loops over the order's items and calls Inventory.reserve for each one. Called from processOrder. If a later item throws, earlier items stay reserved, since nothing rolls back.","src/orders.ts::Inventory":"The product catalog, backed by a Map of Product. getProduct looks one up and throws if it's missing. reserve checks stock and subtracts from it in place.","src/orders.ts::Inventory.constructor":"Stores the products Map as a private field. getProduct is the only method that reads it.","src/orders.ts::Inventory.getProduct":"Looks a product up by id and throws 'Unknown product' if it isn't there. Used by Inventory.reserve and by calculateOrderTotal.","src/orders.ts::Inventory.reserve":"Fetches the product with getProduct, throws if stock is too low, otherwise subtracts the quantity from stock in place. Called from reserveOrderStock.","src/orders.ts::Product":"Shape of a catalog entry: id, name, price, stock. Referenced by Inventory (constructor and getProduct).","src/orders.ts::OrderItem":"One line on an order: a productId and a quantity. Used by Order, calculateOrderTotal.","src/orders.ts::Order":"An order: id, items, status, total. Used by reserveOrderStock and processOrder.","src/orders.ts::OrderStatus":"The allowed order states: pending, paid, shipped, cancelled. Used by Order. processOrder only accepts pending and sets paid.","src/utils/money.ts::roundMoney":"Defined in src/utils/money.ts. Rounds an amount to whole cents. Used once, by calculateOrderTotal.","src/audit/log.ts::recordAudit":"Defined in src/audit/log.ts. Writes a JSON log line with the action, order id and a timestamp. Called by processOrder right after the order is marked paid. Also uses AuditEntry (not expanded)."}}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const B = {};
+D.blocks.forEach(b => { b.lines = b.code.split('\n'); B[b.id] = b; });
+const TOPS = D.blocks.filter(b => !b.parent);
+const kidsOf = id => D.blocks.filter(b => b.parent === id);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const ROW = 18, HEAD = 30, ORG = 22, PADT = 6, GUT = 30, MAXBODY = 340;
+const CPAD = 14, CHEAD = 34, CGAP = 12, CRIGHT = 30, GAPX = 70, GAPY = 28;
+
+const S = {sel: null, mode: 'all', inc: {}, ign: {}, pos: {}, layout: 'story', scale: 1, links: true, file: D.main, summ: {}, open: {}, h: {}, w: {}, mrel: {}};
+D.blocks.forEach(b => { S.inc[b.id] = true; });
+
+/* ---------- syntax colour ---------- */
+const KW = new Set(['import', 'export', 'from', 'type', 'interface', 'class', 'constructor', 'private', 'public', 'readonly', 'function', 'const', 'let', 'return', 'if', 'else', 'for', 'of', 'in', 'new', 'throw', 'this', 'extends', 'implements', 'async', 'await', 'default']);
+const PRIM = new Set(['number', 'string', 'boolean', 'void', 'unknown', 'any']);
+function hl(line) {
+	const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|([A-Za-z_$][\w$]*)|(\d+(?:\.\d+)?)|(\s+)|(.)/g;
+	let m, out = '';
+	while ((m = re.exec(line))) {
+		if (m[1]) out += '<span class="cm">' + esc(m[1]) + '</span>';
+		else if (m[2]) out += '<span class="st">' + esc(m[2]) + '</span>';
+		else if (m[3]) {
+			const w = m[3];
+			if (KW.has(w)) out += '<span class="kw">' + w + '</span>';
+			else if (PRIM.has(w) || /^[A-Z]/.test(w)) out += '<span class="ty">' + w + '</span>';
+			else if (line[re.lastIndex] === '(') out += '<span class="fn">' + w + '</span>';
+			else out += w;
+		} else if (m[4]) out += '<span class="nu">' + m[4] + '</span>';
+		else out += esc(m[0]);
+	}
+	return out;
+}
+
+/* ---------- visibility and geometry ---------- */
+const visible = id => { const b = B[id]; return !S.ign[id] && S.inc[id] && (!b.parent || visible(b.parent)); };
+const visTops = () => TOPS.filter(b => visible(b.id));
+const visKids = id => kidsOf(id).filter(k => visible(k.id));
+const bodyTop = b => HEAD + (b.external ? ORG : 0) + PADT;
+function blockW(b) {
+	const max = Math.max(...b.lines.map(l => l.length));
+	return Math.max(230, Math.min(460, Math.round(max * 6.95 + GUT + 28)));
+}
+function unitW(b) {
+	if (b.kind !== 'class') return blockW(b);
+	const ks = visKids(b.id);
+	const wm = ks.length ? Math.max(...ks.map(blockW)) : 200;
+	return wm + CPAD * 2 + CRIGHT;
+}
+function absRect(id) {
+	const b = B[id];
+	if (b.parent) { const p = S.pos[b.parent] || {x: 0, y: 0}, r = S.mrel[id] || {x: 0, y: 0}; return {x: p.x + r.x, y: p.y + r.y, w: S.w[id], h: S.h[id]}; }
+	const p = S.pos[id] || {x: 0, y: 0};
+	return {x: p.x, y: p.y, w: S.w[id], h: S.h[id]};
+}
+
+/* ---------- render blocks ---------- */
+function blockHtml(b, isMember) {
+	const capped = b.lines.length * ROW + PADT + 8 > MAXBODY;
+	const rows = b.lines.map((l, i) => '<div class="r"><span class="g">' + (b.start + i) + '</span><span>' + hl(l) + '</span></div>').join('');
+	const kind = b.external ? b.kind : b.kind;
+	return '<div class="blk k-' + b.kind + (b.external ? ' ext' : '') + (isMember ? ' member nodrag' : ' top') + (S.open[b.id] ? ' open' : '') + '" data-id="' + esc(b.id) + '" tabindex="0" role="button" aria-label="' + esc(b.kind + ' ' + b.name) + '">'
+		+ '<div class="bh"><span class="bk">' + esc(kind) + '</span><span class="bn">' + esc(b.name) + '</span>' + (capped ? '<button type="button" class="btn sm ex" data-ex="' + esc(b.id) + '">' + (S.open[b.id] ? 'Collapse' : 'Expand') + '</button>' : '') + '</div>'
+		+ (b.external ? '<div class="bo" title="' + esc(b.file) + ' lines ' + b.start + ' to ' + b.end + '">from ' + esc(b.file) + '</div>' : '')
+		+ '<div class="bb"><div class="rows">' + rows + '</div></div>'
+		+ (b.external && b.alsoUses && b.alsoUses.length ? '<div class="bf">also uses ' + esc(b.alsoUses.join(', ')) + ' (not expanded)</div>' : '')
+		+ '</div>';
+}
+function renderBlocks() {
+	let h = '';
+	for (const b of visTops()) {
+		if (b.kind === 'class') {
+			h += '<div class="cnt k-class top" data-id="' + esc(b.id) + '" tabindex="0" role="button" aria-label="class ' + esc(b.name) + '"><div class="bh"><span class="bk">class</span><span class="bn">' + esc(b.name) + '</span><span class="loc" style="margin-left:auto">L' + b.start + '-' + b.end + '</span></div>';
+			for (const k of visKids(b.id)) h += blockHtml(k, true);
+			h += '</div>';
+		} else h += blockHtml(b, false);
+	}
+	$('blocks').innerHTML = h || '<div class="empty">Nothing on the canvas. Use Picker or All to add blocks.</div>';
+}
+function memberOrder(id) {
+	const ks = visKids(id);
+	const depth = {};
+	ks.forEach(k => depth[k.id] = 0);
+	for (let pass = 0; pass < ks.length; pass++) {
+		D.edges.forEach(e => { if (e.type !== 'type' && depth[e.from] !== undefined && depth[e.to] !== undefined) depth[e.to] = Math.max(depth[e.to], depth[e.from] + 1); });
+	}
+	return ks.map((k, i) => ({k, i})).sort((a, b) => depth[a.k.id] - depth[b.k.id] || a.i - b.i).map(x => x.k);
+}
+function measure() {
+	for (const b of visTops()) {
+		S.w[b.id] = unitW(b);
+		const el = document.querySelector('[data-id="' + CSS.escape(b.id) + '"]');
+		if (b.kind === 'class') {
+			let y = CHEAD + CGAP;
+			const wm = S.w[b.id] - CPAD * 2 - CRIGHT;
+			for (const k of memberOrder(b.id)) {
+				const ke = document.querySelector('[data-id="' + CSS.escape(k.id) + '"]');
+				ke.style.width = wm + 'px';
+				S.w[k.id] = wm; S.h[k.id] = ke.offsetHeight;
+				S.mrel[k.id] = {x: CPAD, y};
+				y += S.h[k.id] + CGAP;
+			}
+			S.h[b.id] = y + 2;
+			el.style.width = S.w[b.id] + 'px'; el.style.height = S.h[b.id] + 'px';
+			for (const k of visKids(b.id)) { const ke = document.querySelector('[data-id="' + CSS.escape(k.id) + '"]'); ke.style.left = S.mrel[k.id].x + 'px'; ke.style.top = S.mrel[k.id].y + 'px'; }
+		} else {
+			el.style.width = S.w[b.id] + 'px';
+			S.h[b.id] = el.offsetHeight;
+		}
+	}
+}
+
+/* ---------- layouts ---------- */
+const unitOf = id => B[id].parent || id;
+function storyPositions() {
+	const units = visTops().map(b => b.id);
+	const out = {}, inn = {};
+	D.edges.forEach(e => {
+		if (e.type === 'type') return;
+		const a = unitOf(e.from), b = unitOf(e.to);
+		if (a === b || !units.includes(a) || !units.includes(b)) return;
+		(out[a] = out[a] || new Set()).add(b); (inn[b] = inn[b] || new Set()).add(a);
+	});
+	const isCode = id => ['function', 'class'].includes(B[id].kind);
+	const codeUnits = units.filter(isCode);
+	const entries = codeUnits.filter(u => !inn[u]).sort((a, b) => ((out[b] || []).size) - ((out[a] || []).size) || (B[a].external ? 1 : 0) - (B[b].external ? 1 : 0));
+	S.entry = entries[0] || codeUnits[0] || units[0];
+	const depth = {}; depth[S.entry] = 0;
+	const q = [S.entry];
+	while (q.length) { const u = q.shift(); for (const v of (out[u] || [])) if (depth[v] === undefined) { depth[v] = depth[u] + 1; q.push(v); } }
+	codeUnits.forEach(u => { if (depth[u] === undefined) depth[u] = 0; });
+	const maxCode = Math.max(0, ...codeUnits.map(u => depth[u]));
+	// data layers: longest path through type links between data blocks
+	const data = units.filter(u => !isCode(u));
+	const src = {};
+	D.edges.forEach(e => { if (e.type === 'type' && data.includes(unitOf(e.from)) && data.includes(unitOf(e.to)) && unitOf(e.from) !== unitOf(e.to)) (src[unitOf(e.to)] = src[unitOf(e.to)] || new Set()).add(unitOf(e.from)); });
+	const memo = {};
+	const layer = (u, seen = []) => { if (memo[u] !== undefined) return memo[u]; if (seen.includes(u)) return 0; const s = [...(src[u] || [])]; return memo[u] = s.length ? 1 + Math.max(...s.map(x => layer(x, [...seen, u]))) : 0; };
+	data.forEach(u => { depth[u] = maxCode + 1 + layer(u); });
+	const cols = {};
+	units.forEach(u => (cols[depth[u]] = cols[depth[u]] || []).push(u));
+	const order = id => D.blocks.indexOf(B[id]) + (B[id].external ? 1000 : 0);
+	const keys = Object.keys(cols).map(Number).sort((a, b) => a - b);
+	let x = 40; const pos = {}; const colH = {};
+	keys.forEach(c => { cols[c].sort((a, b) => order(a) - order(b)); colH[c] = cols[c].reduce((s, u) => s + S.h[u], 0) + GAPY * (cols[c].length - 1); });
+	const H = Math.max(...Object.values(colH));
+	keys.forEach(c => {
+		let y = 40 + (H - colH[c]) / 2;
+		cols[c].forEach(u => { pos[u] = {x, y}; y += S.h[u] + GAPY; });
+		x += Math.max(...cols[c].map(u => S.w[u])) + GAPX;
+	});
+	return pos;
+}
+function orderPositions() {
+	const pos = {}; let y = 40, y2 = 40;
+	const mainW = Math.max(...visTops().filter(b => !b.external).map(b => S.w[b.id]), 240);
+	visTops().forEach(b => {
+		if (b.external) { pos[b.id] = {x: 40 + mainW + GAPX, y: y2}; y2 += S.h[b.id] + GAPY; }
+		else { pos[b.id] = {x: 40, y}; y += S.h[b.id] + 22; }
+	});
+	return pos;
+}
+function applyLayout(kind, onlyMissing) {
+	const pos = kind === 'order' ? orderPositions() : storyPositions();
+	for (const id in pos) if (!onlyMissing || !S.pos[id]) S.pos[id] = pos[id];
+	if (kind !== 'free') S.layout = kind;
+	placeAll(true);
+}
+function placeAll(animate) {
+	const w = $('blocks');
+	if (animate && !reduceMotion) { document.body.classList.add('anim'); clearTimeout(placeAll.t); placeAll.t = setTimeout(() => document.body.classList.remove('anim'), 450); }
+	for (const b of visTops()) { const el = w.querySelector('[data-id="' + CSS.escape(b.id) + '"]'); const p = S.pos[b.id]; if (el && p) { el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; } }
+	updateWorld();
+	loopArrows(animate ? 460 : 0);
+	document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === S.layout));
+}
+function updateWorld() {
+	let mx = 600, my = 400;
+	for (const b of visTops()) { const p = S.pos[b.id]; if (p) { mx = Math.max(mx, p.x + S.w[b.id]); my = Math.max(my, p.y + S.h[b.id]); } }
+	S.ww = mx + 60; S.wh = my + 60;
+	const s = S.scale;
+	$('world').style.transform = 'scale(' + s + ')';
+	$('world').style.width = S.ww + 'px'; $('world').style.height = S.wh + 'px';
+	$('sizer').style.width = S.ww * s + 'px'; $('sizer').style.height = S.wh * s + 'px';
+	$('arrows').setAttribute('width', S.ww); $('arrows').setAttribute('height', S.wh);
+	$('zval').textContent = Math.round(s * 100) + '%';
+}
+
+/* ---------- arrows ---------- */
+function arrowList() {
+	const list = new Map();
+	for (const e of D.edges) {
+		if (e.type === 'type' && !S.links) continue;
+		if (!visible(e.from) || !visible(e.to)) continue;
+		let from = e.from; const to = e.to;
+		const agg = e.type === 'type' && B[from].parent;
+		if (agg) from = B[from].parent;
+		if (from === to) continue;
+		const k = from + '|' + to + '|' + (e.type === 'type' ? 't' : 'c');
+		if (!list.has(k)) list.set(k, {from, to, kind: e.type === 'type' ? 'type' : 'call', line: e.lines[0], agg: !!agg, edges: []});
+		const a = list.get(k); a.edges.push(e); a.line = Math.min(a.line, e.lines[0]);
+	}
+	return [...list.values()];
+}
+function drawArrows() {
+	const items = arrowList();
+	const inCount = {}, inIdx = {}, outCount = {}, outIdx = {};
+	items.forEach(a => { inCount[a.to] = (inCount[a.to] || 0) + 1; if (a.agg) outCount[a.from] = (outCount[a.from] || 0) + 1; });
+	const sel = S.sel;
+	const inScope = id => sel && (id === sel || B[id].parent === sel);
+	let h = '';
+	for (const a of items) {
+		const s = absRect(a.from), t = absRect(a.to);
+		if (s.w === undefined || t.w === undefined || isNaN(s.x) || isNaN(t.x)) continue;
+		const sb = B[a.from];
+		const bt = sb.kind === 'class' ? CHEAD / 2 : bodyTop(sb) + (a.line - sb.start) * ROW + ROW / 2;
+		let sy;
+		if (a.agg) { outIdx[a.from] = (outIdx[a.from] || 0); sy = s.y + CHEAD / 2 + (outIdx[a.from]++ - (outCount[a.from] - 1) / 2) * 7; }
+		else sy = s.y + Math.max(bodyTop(sb), Math.min(bt, Math.min(s.h - 10, bodyTop(sb) + MAXBODY - 14)));
+		inIdx[a.to] = (inIdx[a.to] || 0);
+		const tHead = (B[a.to].kind === 'class' ? CHEAD : HEAD) / 2;
+		const ty = t.y + tHead + (inIdx[a.to]++ - (inCount[a.to] - 1) / 2) * 7;
+		let d;
+		if (t.x >= s.x + s.w + 20) {
+			const sx = s.x + s.w, tx = t.x - 2, dx = Math.max(40, (tx - sx) / 2);
+			d = 'M' + sx + ',' + sy + ' C' + (sx + dx) + ',' + sy + ' ' + (tx - dx) + ',' + ty + ' ' + tx + ',' + ty;
+		} else if (s.x >= t.x + t.w + 20) {
+			const sx = s.x, tx = t.x + t.w + 2, dx = Math.max(40, (sx - tx) / 2);
+			d = 'M' + sx + ',' + sy + ' C' + (sx - dx) + ',' + sy + ' ' + (tx + dx) + ',' + ty + ' ' + tx + ',' + ty;
+		} else {
+			const sx = s.x + s.w, tx = t.x + t.w + 2, bx = Math.max(sx, tx) + 30;
+			d = 'M' + sx + ',' + sy + ' C' + bx + ',' + sy + ' ' + bx + ',' + ty + ' ' + tx + ',' + ty;
+		}
+		const hot = sel && (inScope(a.from) || inScope(a.to));
+		const cls = 'ar ' + (a.kind === 'type' ? 'type' : 'call') + (sel ? (hot ? ' hot' : ' cool') : '');
+		h += '<path class="' + cls + '" d="' + d + '" marker-end="url(#' + (a.kind === 'type' ? 'm-type' : 'm-call') + ')"/>';
+	}
+	$('arrows').innerHTML = h;
+}
+let rafId = 0;
+function loopArrows(ms) {
+	const end = performance.now() + ms;
+	cancelAnimationFrame(rafId);
+	const step = () => { drawArrowsLive(); if (performance.now() < end) rafId = requestAnimationFrame(step); };
+	if (ms) step(); else drawArrows();
+}
+function drawArrowsLive() {
+	// during an animated move the real positions come from the DOM
+	for (const b of visTops()) { const el = $('blocks').querySelector('[data-id="' + CSS.escape(b.id) + '"]'); if (el) S.pos[b.id] = {x: el.offsetLeft, y: el.offsetTop}; }
+	drawArrows();
+}
+let pend = false;
+function scheduleArrows() { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; drawArrows(); }); }
+
+/* ---------- flat file ---------- */
+function coverBlock(file, n) {
+	let best = null;
+	for (const b of D.blocks) if (b.file === file && n >= b.start && n <= b.end) if (!best || (b.end - b.start) < (best.end - best.start)) best = b;
+	return best;
+}
+function renderTabs() {
+	$('tabs').innerHTML = Object.keys(D.files).map(f => '<button type="button" class="tab' + (f === S.file ? ' on' : '') + '" data-file="' + esc(f) + '">' + esc(f) + (f !== D.main ? '<i>imported</i>' : '') + '</button>').join('');
+}
+function renderFile() {
+	const lines = D.files[S.file].split('\n');
+	let h = '';
+	lines.forEach((l, i) => {
+		const n = i + 1, b = coverBlock(S.file, n);
+		let cls = 'fl', attr = '';
+		if (b) {
+			attr = ' data-b="' + esc(b.id) + '"';
+			cls += ' k-' + b.kind;
+			if (S.ign[b.id] || (b.parent && S.ign[b.parent])) cls += ' ign'; else if (!visible(b.id)) cls += ' off';
+			if (S.sel && (b.id === S.sel || b.parent === S.sel)) cls += ' sel';
+		}
+		h += '<div class="' + cls + '"' + attr + '><span class="ln">' + n + '</span><span class="tx">' + hl(l) + '</span></div>';
+	});
+	$('file').innerHTML = h;
+	renderTabs();
+}
+function scrollFileTo(n) { const f = $('file'); f.scrollTop = Math.max(0, (n - 5) * 20); }
+const HINTS = {
+	all: 'All blocks are on the canvas. Click a block here or there to select it.',
+	picker: 'Picker: click a block here to add it to the canvas or take it off.',
+	ignore: 'Ignore: click a block here to hide it. Ignored blocks stay out of All.',
+};
+function setMode(m) {
+	S.mode = m;
+	if (m === 'all') { D.blocks.forEach(b => { if (!S.ign[b.id]) S.inc[b.id] = true; }); refresh(true); }
+	document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+	$('hint').textContent = HINTS[m];
+}
+
+/* ---------- inspector ---------- */
+const SUMS = D.sums;
+function related(id) {
+	const ids = new Set([id, ...kidsOf(id).map(k => k.id)]);
+	const used = [], uses = [];
+	for (const e of D.edges) {
+		const fi = ids.has(e.from), ti = ids.has(e.to);
+		if (ti && !fi) used.push(e);
+		if (fi && !ti) uses.push(e);
+	}
+	const merge = (list, key) => {
+		const m = new Map();
+		list.forEach(e => { const k = unitKey(e[key], e); const cur = m.get(k) || {id: e[key], lines: [], type: e.type}; e.lines.forEach(l => cur.lines.push(l)); if (e.type !== 'type') cur.type = e.type; m.set(k, cur); });
+		return [...m.values()];
+	};
+	return {used: merge(used, 'from'), uses: merge(uses, 'to')};
+}
+const unitKey = (id, e) => id;
+function refChip(r, owner) {
+	const b = B[r.id];
+	const nm = (b.parent ? B[b.parent].name + '.' : '') + b.name;
+	const ls = [...new Set(r.lines)].sort((a, c) => a - c).map(l => 'L' + l).join(' ');
+	return '<button type="button" class="ref k-' + b.kind + (r.type === 'type' ? ' t' : '') + '" data-pick="' + esc(r.id) + '">' + esc(nm) + '<small>' + (b.external ? esc(b.file) + ' ' : '') + (owner === 'used' ? ls : '') + '</small></button>';
+}
+function renderInsp() {
+	const id = S.sel;
+	if (!id) { $('insp').innerHTML = '<span class="none">Select a block on the canvas or in the flat file to see where it comes from and where it goes.</span>'; return; }
+	const b = B[id], r = related(id);
+	const loc = b.file + ' : ' + b.start + (b.end > b.start ? '-' + b.end : '');
+	let h = '<div class="ih k-' + b.kind + '"><span class="chipk">' + esc(b.kind) + '</span><h3>' + esc((b.parent ? B[b.parent].name + '.' : '') + b.name) + '</h3><span class="loc">' + esc(loc) + '</span>' + (b.external ? '<span class="tag-ext">defined in another file</span>' : '')
+		+ '<span style="margin-left:auto" class="tools"><button type="button" class="btn primary sm" data-act="sum">Summarize usage</button>' + (b.external ? '<button type="button" class="btn sm" data-act="origin">Show origin file</button>' : '') + '</span></div>';
+	if (S.summ[id]) h += '<div class="sumbox"><span class="src">Claude summary, written for this demo</span><p id="sumtext"></p></div>';
+	else h += '<div class="sumbox empty2">Press Summarize usage for a short account of what this block does and who uses it.</div>';
+	h += '<div class="cols"><div><h4>Used by</h4><div class="refs">' + (r.used.length ? r.used.map(x => refChip(x, 'used')).join('') : '<span class="none">Nothing else in this file</span>') + '</div></div>'
+		+ '<div><h4>Uses</h4><div class="refs">' + (r.uses.length ? r.uses.map(x => refChip(x, 'uses')).join('') : '<span class="none">Nothing from other blocks</span>') + '</div></div></div>';
+	$('insp').innerHTML = h;
+	if (S.summ[id]) typeInto($('sumtext'), SUMS[id] || 'No summary written for this block.', id);
+}
+let typeTok = 0;
+function typeInto(el, text, id) {
+	const tok = ++typeTok;
+	if (reduceMotion || S.summ[id] === 'done') { el.textContent = text; return; }
+	let i = 0;
+	const tick = () => { if (tok !== typeTok) return; i = Math.min(text.length, i + 7); el.textContent = text.slice(0, i); if (i < text.length) setTimeout(tick, 14); else S.summ[id] = 'done'; };
+	tick();
+}
+
+/* ---------- selection ---------- */
+function applySelClasses() {
+	document.querySelectorAll('#blocks [data-id]').forEach(el => {
+		const id = el.dataset.id;
+		el.classList.toggle('sel', id === S.sel);
+	});
+}
+function select(id, opts = {}) {
+	if (id && !visible(id)) return;
+	S.sel = id;
+	if (id) {
+		const b = B[id];
+		if (b.file !== S.file) { S.file = b.file; renderFile(); }
+		else renderFile();
+		if (opts.scrollFile !== false) scrollFileTo(b.start);
+		if (opts.reveal) reveal(id);
+	} else renderFile();
+	applySelClasses(); drawArrows(); renderInsp();
+}
+function reveal(id) {
+	const r = absRect(id), v = $('viewport'), s = S.scale;
+	const x = r.x * s, y = r.y * s, w = r.w * s, h = r.h * s;
+	if (x < v.scrollLeft || x + w > v.scrollLeft + v.clientWidth) v.scrollLeft = Math.max(0, x - 40);
+	if (y < v.scrollTop || y + h > v.scrollTop + v.clientHeight) v.scrollTop = Math.max(0, y - 40);
+}
+
+/* ---------- full refresh ---------- */
+function refresh(relayout) {
+	renderBlocks(); measure();
+	if (relayout) {
+		if (S.layout === 'free') applyLayout('story', true); else applyLayout(S.layout, false);
+	} else placeAll(false);
+	applySelClasses(); renderFile(); renderInsp();
+	$('pCount').textContent = visTops().length + ' blocks on canvas';
+}
+
+/* ---------- events ---------- */
+let drag = null;
+document.addEventListener('pointerdown', ev => {
+	const exb = ev.target.closest('[data-ex]');
+	if (exb) return;
+	const hd = ev.target.closest('#blocks .top > .bh');
+	if (!hd) return;
+	const el = hd.parentElement, id = el.dataset.id;
+	drag = {id, el, x0: ev.clientX, y0: ev.clientY, p0: {...S.pos[id]}, moved: false};
+	hd.setPointerCapture(ev.pointerId);
+});
+document.addEventListener('pointermove', ev => {
+	if (!drag) return;
+	const dx = (ev.clientX - drag.x0) / S.scale, dy = (ev.clientY - drag.y0) / S.scale;
+	if (!drag.moved && Math.hypot(dx, dy) * S.scale < 4) return;
+	if (!drag.moved) { drag.moved = true; document.body.classList.add('dragging'); document.body.classList.remove('anim'); }
+	const p = {x: Math.max(0, drag.p0.x + dx), y: Math.max(0, drag.p0.y + dy)};
+	S.pos[drag.id] = p; drag.el.style.left = p.x + 'px'; drag.el.style.top = p.y + 'px';
+	S.layout = 'free'; document.querySelectorAll('[data-layout]').forEach(b => b.classList.remove('on'));
+	scheduleArrows();
+});
+document.addEventListener('pointerup', () => {
+	if (!drag) return;
+	const d = drag; drag = null;
+	document.body.classList.remove('dragging');
+	if (d.moved) { updateWorld(); drawArrows(); select(d.id); } else select(d.id);
+});
+document.addEventListener('click', ev => {
+	const t = ev.target;
+	const ex = t.closest('[data-ex]');
+	if (ex) { S.open[ex.dataset.ex] = !S.open[ex.dataset.ex]; refresh(false); measure(); placeAll(false); return; }
+	const pick = t.closest('[data-pick]');
+	if (pick) { select(pick.dataset.pick, {reveal: true}); return; }
+	const act = t.closest('[data-act]');
+	if (act) {
+		if (act.dataset.act === 'sum') { S.summ[S.sel] = S.summ[S.sel] === 'done' ? 'done' : true; renderInsp(); }
+		if (act.dataset.act === 'origin') { S.file = B[S.sel].file; renderFile(); scrollFileTo(B[S.sel].start); }
+		return;
+	}
+	const tab = t.closest('[data-file]');
+	if (tab) { S.file = tab.dataset.file; renderFile(); return; }
+	const row = t.closest('.fl[data-b]');
+	if (row) {
+		const id = row.dataset.b;
+		if (S.mode === 'picker') { S.inc[id] = !S.inc[id]; if (S.inc[id]) { let p = B[id].parent; while (p) { S.inc[p] = true; p = B[p].parent; } } refresh(true); if (S.sel && !visible(S.sel)) S.sel = null; renderFile(); renderInsp(); applySelClasses(); drawArrows(); return; }
+		if (S.mode === 'ignore') { S.ign[id] = !S.ign[id]; if (S.sel && !visible(S.sel)) S.sel = null; refresh(true); return; }
+		if (visible(id)) { select(id, {reveal: true, scrollFile: false}); } else select(null);
+		return;
+	}
+	const modeBtn = t.closest('[data-mode]');
+	if (modeBtn) { setMode(modeBtn.dataset.mode); return; }
+	const lay = t.closest('[data-layout]');
+	if (lay) { applyLayout(lay.dataset.layout, false); drawArrows(); return; }
+	const blk = t.closest('#blocks [data-id]');
+	if (blk) return;
+	if (t.closest('#viewport') && S.sel) select(null);
+});
+document.addEventListener('keydown', ev => {
+	if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('#blocks [data-id]') && ev.target === document.activeElement) { ev.preventDefault(); select(ev.target.dataset.id); }
+});
+$('links').addEventListener('click', () => { S.links = !S.links; $('links').classList.toggle('on', S.links); drawArrows(); });
+function setScale(s) { S.scale = Math.max(0.3, Math.min(1.4, s)); updateWorld(); drawArrows(); }
+$('zin').addEventListener('click', () => setScale(S.scale + 0.1));
+$('zout').addEventListener('click', () => setScale(S.scale - 0.1));
+$('fit').addEventListener('click', () => { updateWorld(); const v = $('viewport'); setScale(Math.min(1, (v.clientWidth - 8) / S.ww, (v.clientHeight - 8) / S.wh)); v.scrollLeft = 0; v.scrollTop = 0; });
+
+/* ---------- boot ---------- */
+$('pFile').textContent = D.main;
+$('links').classList.add('on');
+$('hint').textContent = HINTS.all;
+renderTabs();
+refresh(true);
+requestAnimationFrame(() => { $('fit').click(); });
+</script>

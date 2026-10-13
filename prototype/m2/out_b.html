@@ -1,0 +1,332 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Plan Map in the Terminal</title>
+<style>
+
+/* Layout concept: one canvas you can zoom. Far out it is a map of files, close in it is the exact code, line for line.
+   A feature plan lands as an overlay: new files in a band above the map, changed files badged, and zooming in
+   shows the exact lines. Nothing already on the map is moved to make room. */
+:root {
+	--bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f6f9; --canvas: #f7f9fb; --dot: #d3dbe4;
+	--ink: #14202c; --ink-2: #38485a; --muted: #5b6b7b; --line: #cdd6df;
+	--accent: #1b6fc4; --accent-soft: #dbe9f8;
+	--blue: #1b86c9; --purple: #7b4fd0; --teal: #168a80; --orange: #c4570b;
+	--add: #1e8a4c; --add-bg: rgba(30, 138, 76, .13); --del: #c23b3b; --del-bg: rgba(194, 59, 59, .12); --mod: #a8740a; --mod-bg: rgba(212, 155, 0, .16);
+	--syn-kw: #a02f9c; --syn-str: #b4530b; --syn-cm: #6b7b8a; --syn-num: #1a6fb5;
+	--shadow: 0 1px 2px rgba(20, 32, 44, .08), 0 6px 18px rgba(20, 32, 44, .06);
+	--font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+		--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+		--blue: #4cb4f0; --purple: #a98cff; --teal: #4ad8c8; --orange: #ff9d57;
+		--add: #4fd88a; --add-bg: rgba(79, 216, 138, .14); --del: #ff7b72; --del-bg: rgba(255, 123, 114, .14); --mod: #e8c75a; --mod-bg: rgba(232, 199, 90, .16);
+		--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+		--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+	--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+	--blue: #4cb4f0; --purple: #a98cff; --teal: #4ad8c8; --orange: #ff9d57;
+	--add: #4fd88a; --add-bg: rgba(79, 216, 138, .14); --del: #ff7b72; --del-bg: rgba(255, 123, 114, .14); --mod: #e8c75a; --mod-bg: rgba(232, 199, 90, .16);
+	--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+	--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 44px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, .blk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.top h1 { margin: 0; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; font-weight: 700; text-wrap: balance; }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 74ch; }
+
+.ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.bubble { background: var(--accent-soft); border-radius: 12px 12px 12px 4px; padding: 8px 12px; max-width: 62ch; }
+.bubble b { font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 7px 13px; font-size: 13px; font-weight: 500; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 10px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+@media (max-width: 960px) { .work { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; overflow: hidden; }
+.vp-wrap { position: relative; }
+.vp { position: relative; height: 640px; overflow: hidden; touch-action: none; cursor: grab; background-color: var(--canvas); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; }
+.vp.drag { cursor: grabbing; }
+@media (max-width: 640px) { .vp { height: 520px; } }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.tools { position: absolute; z-index: 20; right: 10px; top: 10px; display: flex; gap: 6px; align-items: center; }
+.tools .lvl { font-size: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; color: var(--ink-2); font-weight: 600; min-width: 92px; text-align: center; }
+.hintbar { position: absolute; z-index: 20; left: 10px; bottom: 10px; font-size: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--muted); }
+
+.file { position: absolute; border: 2px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--surface) 55%, transparent); transition: opacity .35s; }
+.file.new { border-color: var(--add); border-style: dashed; }
+.file.mod { border-color: var(--mod); }
+.mode-base .file.new { display: none; }
+.mode-applied .file.new { border-style: solid; }
+.fh { position: absolute; left: 16px; right: 16px; top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.fh .fn { font-family: var(--font-mono); font-weight: 600; font-size: 22px; white-space: nowrap; }
+.fh .row { display: flex; gap: 8px; flex-wrap: wrap; min-height: 24px; }
+.fh .dir { color: var(--muted); font-weight: 500; }
+.map .fh .dir { display: none; }
+.badge { font-family: var(--font-ui); font-size: 15px; font-weight: 600; border-radius: 999px; padding: 2px 12px; display: none; }
+.badge.b-new { background: var(--add-bg); color: var(--add); }
+.badge.b-mod { background: var(--mod-bg); color: var(--mod); }
+.badge.b-use { background: var(--accent-soft); color: var(--accent); }
+.mode-plan .badge.on, .mode-applied .badge.on { display: inline-block; }
+.fh .fn { line-height: 1.15; }
+.map .fh .fn { font-size: 42px; } .map .fh .row { min-height: 40px; } .map .badge { font-size: 24px; line-height: 1.3; padding: 2px 14px; }
+.map .file { border-width: 5px; border-radius: 30px; }
+
+.blk { position: absolute; background: var(--surface); border: 1.5px solid var(--k); border-radius: 9px; overflow: hidden; cursor: pointer; transition: opacity .3s, box-shadow .25s; --k: var(--blue); z-index: 1; }
+.blk.class { --k: var(--purple); } .blk.interface, .blk.type { --k: var(--teal); } .blk.imports { --k: var(--muted); }
+.mode-base .blk.new { display: none; }
+.blk.new { --k: var(--add); }
+.mode-plan .blk.new { border-style: dashed; background: color-mix(in srgb, var(--add) 7%, var(--surface)); }
+.blk.mod .bh { box-shadow: inset 0 -2px 0 var(--mod); }
+.blk.dim { opacity: .3; }
+.blk.sel { box-shadow: 0 0 0 4px color-mix(in srgb, var(--k) 38%, transparent); }
+.bh { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 9px; background: color-mix(in srgb, var(--k) 13%, var(--surface)); }
+.bk { font-family: var(--font-mono); font-size: 9.5px; color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 45%, transparent); border-radius: 4px; padding: 0 4px; line-height: 14px; }
+.bn { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { margin-left: auto; font-family: var(--font-ui); font-size: 10px; font-weight: 600; border-radius: 4px; padding: 0 6px; line-height: 15px; display: none; }
+.tag.t-new { background: var(--add-bg); color: var(--add); } .tag.t-mod { background: var(--mod-bg); color: var(--mod); }
+.mode-plan .blk.new .t-new, .mode-applied .blk.new .t-new, .mode-plan .blk.mod .t-mod, .mode-applied .blk.mod .t-mod { display: inline-block; }
+.mode-plan .blk.new .t-new::after { content: " (proposed)"; }
+.bb { padding: 6px 0; font-family: var(--font-mono); font-size: 10px; line-height: 14px; }
+.ln { display: flex; white-space: pre; height: 14px; }
+.ln .g { flex: none; width: 34px; text-align: right; padding-right: 8px; color: var(--muted); user-select: none; font-variant-numeric: tabular-nums; }
+.ln .g .gn { display: none; }
+.mode-plan .ln .g .go, .mode-applied .ln .g .go { display: none; }
+.mode-plan .ln .g .gn, .mode-applied .ln .g .gn { display: inline; }
+.mode-plan .ln.d-m .g .go, .mode-applied .ln.d-m .g .go { display: inline; }
+.mode-plan .ln.d-m .g .gn, .mode-applied .ln.d-m .g .gn { display: none; }
+.ln .c { padding-right: 8px; }
+.mode-base .ln.d-p { display: none; }
+.mode-plan .ln.d-p, .mode-applied .ln.d-p { background: var(--add-bg); }
+.mode-plan .ln.d-m, .mode-applied .ln.d-m { background: var(--del-bg); }
+.mode-plan .ln.d-p .c::before, .mode-applied .ln.d-p .c::before { content: "+ "; color: var(--add); margin-left: -12px; }
+.mode-plan .ln.d-m .c::before, .mode-applied .ln.d-m .c::before { content: "- "; color: var(--del); margin-left: -12px; }
+.ln .c { margin-left: 12px; }
+.kw { color: var(--syn-kw); } .st { color: var(--syn-str); } .cm { color: var(--syn-cm); } .nu { color: var(--syn-num); }
+
+/* level of detail: far out, blocks become labelled silhouettes */
+.lod { transition: opacity .25s; }
+.map .bb { opacity: 0; }
+.map .bh { height: 70px; padding: 0 20px; gap: 14px; }
+.map .bk, .map .tag { display: none !important; }
+.map .bn { font-size: 30px; }
+.map .blk { border-width: 4px; border-radius: 16px; }
+.map .blk.imports { opacity: .45; }
+.arrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 5; }
+.map .bedges { opacity: 0; } .code .fedges { opacity: 0; }
+.fedges, .bedges { transition: opacity .25s; }
+.ed { fill: none; stroke: var(--blue); stroke-width: 1.8; opacity: .85; }
+.ed.new { stroke: var(--add); }
+.mode-plan .ed.new { stroke-dasharray: 7 5; }
+.ed.gone { stroke: var(--del); stroke-dasharray: 3 5; }
+.ed.dim { opacity: .1; }
+.map .ed { stroke-width: 6; }
+.edot { fill: var(--blue); } .edot.new { fill: var(--add); } .edot.gone { fill: var(--del); }
+.mk-b { fill: var(--blue); } .mk-n { fill: var(--add); } .mk-g { fill: var(--del); }
+.elab { font-family: var(--font-ui); font-size: 26px; font-weight: 600; fill: var(--ink-2); paint-order: stroke; stroke: var(--canvas); stroke-width: 7px; }
+.mode-base .elab.new { display: none; }
+
+/* side */
+.side { display: flex; flex-direction: column; }
+.sh { padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.sb { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.sb p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.grp h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.it { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 9px; margin-bottom: 5px; font-family: var(--font-mono); font-size: 11.5px; }
+.it:hover { border-color: var(--accent); }
+.it .m { flex: none; width: 16px; text-align: center; font-weight: 700; font-family: var(--font-ui); }
+.it .m.n { color: var(--add); } .it .m.c { color: var(--mod); } .it .m.u { color: var(--accent); }
+.it small { color: var(--muted); font-family: var(--font-ui); margin-left: auto; font-size: 11px; white-space: nowrap; }
+.rec { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; background: var(--surface-2); }
+.rec.ok b { color: var(--add); } .rec.bad b { color: var(--del); }
+.rec ul { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
+.insp { border-top: 1px solid var(--line); padding: 12px 14px; display: grid; gap: 8px; min-height: 120px; align-content: start; }
+.ih { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ih .nm { font-family: var(--font-mono); font-weight: 600; font-size: 14px; } .ih .lc { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.cols h5 { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 2px 7px; }
+.chip i { font-style: normal; color: var(--muted); }
+.chip.nw { border-color: var(--add); }
+.ph { color: var(--muted); font-size: 13px; }
+.foot { color: var(--muted); font-size: 12px; max-width: 95ch; }
+@media (prefers-reduced-motion: reduce) { .lod, .blk, .file, .fedges, .bedges { transition: none !important; } }
+
+:root { --t-bg: #14181d; --t-bar: #1d232a; --t-ink: #d8e0e8; --t-dim: #8392a1; --t-line: #2c353f; --t-blue: #6ab8ff; --t-green: #6fd58d; --t-red: #ff7b72; --t-orange: #ffa657; --t-purple: #c4a2ff; --t-teal: #5fd6c8; --t-yellow: #e8c75a; }
+.term { background: var(--t-bg); color: var(--t-ink); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--t-line); min-width: 0; }
+.tbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--t-bar); border-bottom: 1px solid var(--t-line); font-family: var(--font-mono); font-size: 11.5px; color: var(--t-dim); }
+.dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--t-line); }
+.t-blue { color: var(--t-blue); } .t-dim { color: var(--t-dim); } .t-org { color: var(--t-orange); } .t-grn { color: var(--t-green); } .t-red { color: var(--t-red); } .t-yel { color: var(--t-yellow); } .t-pur { color: var(--t-purple); }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.note h3 { margin: 0 0 4px; font-size: 13px; } .note p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.segb { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); align-self: flex-start; }
+.segb button { border: 0; background: transparent; padding: 7px 13px; font-size: 13px; font-weight: 500; border-right: 1px solid var(--line); }
+.segb button:last-child { border-right: 0; } .segb button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.pill { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+
+.screen { padding: 10px 8px 12px; overflow: hidden; }
+.grid { margin: 0 auto; width: max-content; font-family: var(--font-mono); line-height: 1.2; white-space: pre; display: block; }
+.grid .r { display: block; height: 1.2em; white-space: nowrap; }
+.grid i { display: inline-block; width: 1ch; font-style: normal; overflow: hidden; vertical-align: top; text-align: center; }
+.k-d { color: var(--t-dim); } .k-b { color: var(--t-blue); } .k-g { color: var(--t-green); } .k-r { color: var(--t-red); } .k-y { color: var(--t-yellow); } .k-w { color: var(--t-ink); } .k-p { color: var(--t-purple); }
+.k-sel { background: var(--t-ink); color: var(--t-bg); }
+.k-gbg { background: color-mix(in srgb, var(--t-green) 16%, transparent); color: var(--t-green); } .k-rbg { background: color-mix(in srgb, var(--t-red) 16%, transparent); color: var(--t-red); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.keys button { font-family: var(--font-mono); font-size: 12px; background: var(--t-bar); color: var(--t-ink); border: 1px solid var(--t-line); border-radius: 6px; padding: 4px 9px; }
+.keys button:hover { border-color: var(--t-blue); }
+</style>
+<div class="app">
+	<header class="top">
+		<h1>Plan Map in the Terminal</h1>
+		<p>A full screen view for people who live in the terminal. The map is boxes you move between, Enter zooms into a file's exact lines, and p / a flip between the plan and the applied result. Click the keys below or press them.</p>
+	</header>
+	<div class="term" id="term"><div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>storyline plan   (npx storyline plan)</span></div>
+		<div class="screen" id="scr"><div class="grid" id="grid" tabindex="0" aria-label="Terminal view. Arrow keys move, Enter zooms in, Escape zooms out, p plan, a applied, c check."></div>
+		<div class="keys" id="keys"></div></div></div>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>The whole project on one screen with the new files in their own band, then the exact lines of any file one keypress away. No browser, no mouse.</p></div>
+		<div class="note"><h3>What you give up</h3><p>Arrows between files are listed for the selected box instead of being drawn, and there is no free pan. Cell grids are good at boxes and bad at routing.</p></div>
+		<div class="note"><h3>Keys</h3><p><span class="pill">arrows</span> move &nbsp;<span class="pill">enter</span> zoom in &nbsp;<span class="pill">esc</span> zoom out &nbsp;<span class="pill">b p a</span> view &nbsp;<span class="pill">c</span> check</p></div>
+	</div>
+	<p class="foot">Mock TUI. Files, blocks, line numbers, diff lines and arrows are computed from a real type-checked mini project. The check result for the handler arrow is staged.</p>
+</div>
+<script type="application/json" id="data">{"blocks":{"src/utils/money.ts::roundMoney":{"id":"src/utils/money.ts::roundMoney","file":"src/utils/money.ts","kind":"function","name":"roundMoney","status":"same","lines":[{"t":"// Rounds to whole cents so floating point sums don't leak into totals.","d":" ","o":1,"n":1},{"t":"export function roundMoney(amount: number): number {","d":" ","o":2,"n":2},{"t":"  return Math.round((amount + Number.EPSILON) * 100) / 100;","d":" ","o":3,"n":3},{"t":"}","d":" ","o":4,"n":4}],"members":[]},"src/audit/log.ts::AuditEntry":{"id":"src/audit/log.ts::AuditEntry","file":"src/audit/log.ts","kind":"interface","name":"AuditEntry","status":"same","lines":[{"t":"interface AuditEntry {","d":" ","o":1,"n":1},{"t":"  action: string;","d":" ","o":2,"n":2},{"t":"  orderId: string;","d":" ","o":3,"n":3},{"t":"  at: string;","d":" ","o":4,"n":4},{"t":"}","d":" ","o":5,"n":5}],"members":[]},"src/audit/log.ts::recordAudit":{"id":"src/audit/log.ts::recordAudit","file":"src/audit/log.ts","kind":"function","name":"recordAudit","status":"same","lines":[{"t":"export function recordAudit(action: string, orderId: string): void {","d":" ","o":7,"n":7},{"t":"  const entry: AuditEntry = {","d":" ","o":8,"n":8},{"t":"    action,","d":" ","o":9,"n":9},{"t":"    orderId,","d":" ","o":10,"n":10},{"t":"    at: new Date().toISOString(),","d":" ","o":11,"n":11},{"t":"  };","d":" ","o":12,"n":12},{"t":"","d":" ","o":13,"n":13},{"t":"  console.log(JSON.stringify(entry));","d":" ","o":14,"n":14},{"t":"}","d":" ","o":15,"n":15}],"members":[]},"src/orders.ts::imports":{"id":"src/orders.ts::imports","file":"src/orders.ts","kind":"imports","name":"imports","status":"same","lines":[{"t":"import { roundMoney } from \"./utils/money\";","d":" ","o":1,"n":1},{"t":"import { recordAudit } from \"./audit/log\";","d":" ","o":2,"n":2}],"members":[]},"src/orders.ts::OrderStatus":{"id":"src/orders.ts::OrderStatus","file":"src/orders.ts","kind":"type","name":"OrderStatus","status":"mod","lines":[{"t":"type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"cancelled\";","d":"-","o":4,"n":null},{"t":"type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"cancelled\" | \"refunded\";","d":"+","o":null,"n":4}],"members":[]},"src/orders.ts::Product":{"id":"src/orders.ts::Product","file":"src/orders.ts","kind":"interface","name":"Product","status":"same","lines":[{"t":"interface Product {","d":" ","o":6,"n":6},{"t":"  id: string;","d":" ","o":7,"n":7},{"t":"  name: string;","d":" ","o":8,"n":8},{"t":"  price: number;","d":" ","o":9,"n":9},{"t":"  stock: number;","d":" ","o":10,"n":10},{"t":"}","d":" ","o":11,"n":11}],"members":[]},"src/orders.ts::OrderItem":{"id":"src/orders.ts::OrderItem","file":"src/orders.ts","kind":"interface","name":"OrderItem","status":"same","lines":[{"t":"export interface OrderItem {","d":" ","o":13,"n":13},{"t":"  productId: string;","d":" ","o":14,"n":14},{"t":"  quantity: number;","d":" ","o":15,"n":15},{"t":"}","d":" ","o":16,"n":16}],"members":[]},"src/orders.ts::Order":{"id":"src/orders.ts::Order","file":"src/orders.ts","kind":"interface","name":"Order","status":"same","lines":[{"t":"export interface Order {","d":" ","o":18,"n":18},{"t":"  id: string;","d":" ","o":19,"n":19},{"t":"  items: OrderItem[];","d":" ","o":20,"n":20},{"t":"  status: OrderStatus;","d":" ","o":21,"n":21},{"t":"  total: number;","d":" ","o":22,"n":22},{"t":"}","d":" ","o":23,"n":23}],"members":[]},"src/orders.ts::Inventory":{"id":"src/orders.ts::Inventory","file":"src/orders.ts","kind":"class","name":"Inventory","status":"mod","lines":[{"t":"export class Inventory {","d":" ","o":25,"n":25},{"t":"  constructor(private products: Map<string, Product>) {}","d":" ","o":26,"n":26},{"t":"","d":" ","o":27,"n":27},{"t":"  getProduct(id: string): Product {","d":" ","o":28,"n":28},{"t":"    const product = this.products.get(id);","d":" ","o":29,"n":29},{"t":"","d":" ","o":30,"n":30},{"t":"    if (!product) {","d":" ","o":31,"n":31},{"t":"      throw new Error(`Unknown product: ${id}`);","d":" ","o":32,"n":32},{"t":"    }","d":" ","o":33,"n":33},{"t":"","d":" ","o":34,"n":34},{"t":"    return product;","d":" ","o":35,"n":35},{"t":"  }","d":" ","o":36,"n":36},{"t":"","d":" ","o":37,"n":37},{"t":"  reserve(productId: string, quantity: number): void {","d":" ","o":38,"n":38},{"t":"    const product = this.getProduct(productId);","d":" ","o":39,"n":39},{"t":"","d":" ","o":40,"n":40},{"t":"    if (product.stock < quantity) {","d":" ","o":41,"n":41},{"t":"      throw new Error(`Insufficient stock for ${product.name}`);","d":" ","o":42,"n":42},{"t":"    }","d":" ","o":43,"n":43},{"t":"","d":" ","o":44,"n":44},{"t":"    product.stock -= quantity;","d":" ","o":45,"n":45},{"t":"  }","d":" ","o":46,"n":46},{"t":"","d":"+","o":null,"n":47},{"t":"  restock(productId: string, quantity: number): void {","d":"+","o":null,"n":48},{"t":"    const product = this.getProduct(productId);","d":"+","o":null,"n":49},{"t":"","d":"+","o":null,"n":50},{"t":"    product.stock += quantity;","d":"+","o":null,"n":51},{"t":"  }","d":"+","o":null,"n":52},{"t":"}","d":" ","o":47,"n":53}],"members":[{"name":"constructor","line":26},{"name":"getProduct","line":28},{"name":"reserve","line":38},{"name":"restock","line":48}]},"src/orders.ts::calculateOrderTotal":{"id":"src/orders.ts::calculateOrderTotal","file":"src/orders.ts","kind":"function","name":"calculateOrderTotal","status":"same","lines":[{"t":"function calculateOrderTotal(","d":" ","o":49,"n":55},{"t":"  items: OrderItem[],","d":" ","o":50,"n":56},{"t":"  inventory: Inventory","d":" ","o":51,"n":57},{"t":"): number {","d":" ","o":52,"n":58},{"t":"  return roundMoney(items.reduce((total, item) => {","d":" ","o":53,"n":59},{"t":"    const product = inventory.getProduct(item.productId);","d":" ","o":54,"n":60},{"t":"    return total + product.price * item.quantity;","d":" ","o":55,"n":61},{"t":"  }, 0));","d":" ","o":56,"n":62},{"t":"}","d":" ","o":57,"n":63}],"members":[]},"src/orders.ts::reserveOrderStock":{"id":"src/orders.ts::reserveOrderStock","file":"src/orders.ts","kind":"function","name":"reserveOrderStock","status":"same","lines":[{"t":"function reserveOrderStock(","d":" ","o":59,"n":65},{"t":"  order: Order,","d":" ","o":60,"n":66},{"t":"  inventory: Inventory","d":" ","o":61,"n":67},{"t":"): void {","d":" ","o":62,"n":68},{"t":"  for (const item of order.items) {","d":" ","o":63,"n":69},{"t":"    inventory.reserve(item.productId, item.quantity);","d":" ","o":64,"n":70},{"t":"  }","d":" ","o":65,"n":71},{"t":"}","d":" ","o":66,"n":72}],"members":[]},"src/orders.ts::processOrder":{"id":"src/orders.ts::processOrder","file":"src/orders.ts","kind":"function","name":"processOrder","status":"same","lines":[{"t":"export function processOrder(","d":" ","o":68,"n":74},{"t":"  order: Order,","d":" ","o":69,"n":75},{"t":"  inventory: Inventory","d":" ","o":70,"n":76},{"t":"): Order {","d":" ","o":71,"n":77},{"t":"  if (order.status !== \"pending\") {","d":" ","o":72,"n":78},{"t":"    throw new Error(\"Only pending orders can be processed\");","d":" ","o":73,"n":79},{"t":"  }","d":" ","o":74,"n":80},{"t":"","d":" ","o":75,"n":81},{"t":"  order.total = calculateOrderTotal(order.items, inventory);","d":" ","o":76,"n":82},{"t":"","d":" ","o":77,"n":83},{"t":"  reserveOrderStock(order, inventory);","d":" ","o":78,"n":84},{"t":"","d":" ","o":79,"n":85},{"t":"  order.status = \"paid\";","d":" ","o":80,"n":86},{"t":"  recordAudit(\"order.paid\", order.id);","d":" ","o":81,"n":87},{"t":"","d":" ","o":82,"n":88},{"t":"  return order;","d":" ","o":83,"n":89},{"t":"}","d":" ","o":84,"n":90}],"members":[]},"src/api/checkout.ts::imports":{"id":"src/api/checkout.ts::imports","file":"src/api/checkout.ts","kind":"imports","name":"imports","status":"same","lines":[{"t":"import { Inventory, Order, processOrder } from \"../orders\";","d":" ","o":1,"n":1}],"members":[]},"src/api/checkout.ts::loadOrder":{"id":"src/api/checkout.ts::loadOrder","file":"src/api/checkout.ts","kind":"function","name":"loadOrder","status":"same","lines":[{"t":"declare function loadOrder(id: string): Promise<Order>;","d":" ","o":3,"n":3}],"members":[]},"src/api/checkout.ts::checkoutHandler":{"id":"src/api/checkout.ts::checkoutHandler","file":"src/api/checkout.ts","kind":"function","name":"checkoutHandler","status":"same","lines":[{"t":"export async function checkoutHandler(","d":" ","o":5,"n":5},{"t":"  req: { orderId: string },","d":" ","o":6,"n":6},{"t":"  inventory: Inventory","d":" ","o":7,"n":7},{"t":"): Promise<Order> {","d":" ","o":8,"n":8},{"t":"  const order = await loadOrder(req.orderId);","d":" ","o":9,"n":9},{"t":"  return processOrder(order, inventory);","d":" ","o":10,"n":10},{"t":"}","d":" ","o":11,"n":11}],"members":[]},"src/jobs/retry.ts::imports":{"id":"src/jobs/retry.ts::imports","file":"src/jobs/retry.ts","kind":"imports","name":"imports","status":"same","lines":[{"t":"import { Inventory, Order, processOrder } from \"../orders\";","d":" ","o":1,"n":1}],"members":[]},"src/jobs/retry.ts::retryFailed":{"id":"src/jobs/retry.ts::retryFailed","file":"src/jobs/retry.ts","kind":"function","name":"retryFailed","status":"same","lines":[{"t":"export function retryFailed(orders: Order[], inventory: Inventory): void {","d":" ","o":3,"n":3},{"t":"  for (const order of orders) {","d":" ","o":4,"n":4},{"t":"    processOrder(order, inventory);","d":" ","o":5,"n":5},{"t":"  }","d":" ","o":6,"n":6},{"t":"}","d":" ","o":7,"n":7}],"members":[]},"src/refunds.ts::imports":{"id":"src/refunds.ts::imports","file":"src/refunds.ts","kind":"imports","name":"imports","status":"new","lines":[{"t":"import { Inventory, Order } from \"./orders\";","d":"+","o":null,"n":1},{"t":"import { roundMoney } from \"./utils/money\";","d":"+","o":null,"n":2},{"t":"import { recordAudit } from \"./audit/log\";","d":"+","o":null,"n":3}],"members":[]},"src/refunds.ts::calculateRefundTotal":{"id":"src/refunds.ts::calculateRefundTotal","file":"src/refunds.ts","kind":"function","name":"calculateRefundTotal","status":"new","lines":[{"t":"function calculateRefundTotal(order: Order, inventory: Inventory): number {","d":"+","o":null,"n":5},{"t":"  return roundMoney(order.items.reduce((total, item) => {","d":"+","o":null,"n":6},{"t":"    const product = inventory.getProduct(item.productId);","d":"+","o":null,"n":7},{"t":"    return total + product.price * item.quantity;","d":"+","o":null,"n":8},{"t":"  }, 0));","d":"+","o":null,"n":9},{"t":"}","d":"+","o":null,"n":10}],"members":[]},"src/refunds.ts::restockOrderItems":{"id":"src/refunds.ts::restockOrderItems","file":"src/refunds.ts","kind":"function","name":"restockOrderItems","status":"new","lines":[{"t":"function restockOrderItems(order: Order, inventory: Inventory): void {","d":"+","o":null,"n":12},{"t":"  for (const item of order.items) {","d":"+","o":null,"n":13},{"t":"    inventory.restock(item.productId, item.quantity);","d":"+","o":null,"n":14},{"t":"  }","d":"+","o":null,"n":15},{"t":"}","d":"+","o":null,"n":16}],"members":[]},"src/refunds.ts::refundOrder":{"id":"src/refunds.ts::refundOrder","file":"src/refunds.ts","kind":"function","name":"refundOrder","status":"new","lines":[{"t":"export function refundOrder(order: Order, inventory: Inventory): Order {","d":"+","o":null,"n":18},{"t":"  if (order.status !== \"paid\") {","d":"+","o":null,"n":19},{"t":"    throw new Error(\"Only paid orders can be refunded\");","d":"+","o":null,"n":20},{"t":"  }","d":"+","o":null,"n":21},{"t":"","d":"+","o":null,"n":22},{"t":"  const amount = calculateRefundTotal(order, inventory);","d":"+","o":null,"n":23},{"t":"  order.total = roundMoney(order.total - amount);","d":"+","o":null,"n":24},{"t":"","d":"+","o":null,"n":25},{"t":"  restockOrderItems(order, inventory);","d":"+","o":null,"n":26},{"t":"","d":"+","o":null,"n":27},{"t":"  order.status = \"refunded\";","d":"+","o":null,"n":28},{"t":"  recordAudit(\"order.refunded\", order.id);","d":"+","o":null,"n":29},{"t":"","d":"+","o":null,"n":30},{"t":"  return order;","d":"+","o":null,"n":31},{"t":"}","d":"+","o":null,"n":32}],"members":[]},"src/api/refundHandler.ts::imports":{"id":"src/api/refundHandler.ts::imports","file":"src/api/refundHandler.ts","kind":"imports","name":"imports","status":"new","lines":[{"t":"import { Inventory, Order } from \"../orders\";","d":"+","o":null,"n":1},{"t":"import { refundOrder } from \"../refunds\";","d":"+","o":null,"n":2}],"members":[]},"src/api/refundHandler.ts::loadOrder":{"id":"src/api/refundHandler.ts::loadOrder","file":"src/api/refundHandler.ts","kind":"function","name":"loadOrder","status":"new","lines":[{"t":"declare function loadOrder(id: string): Promise<Order>;","d":"+","o":null,"n":4}],"members":[]},"src/api/refundHandler.ts::refundHandler":{"id":"src/api/refundHandler.ts::refundHandler","file":"src/api/refundHandler.ts","kind":"function","name":"refundHandler","status":"new","lines":[{"t":"export async function refundHandler(","d":"+","o":null,"n":6},{"t":"  req: { orderId: string },","d":"+","o":null,"n":7},{"t":"  inventory: Inventory","d":"+","o":null,"n":8},{"t":"): Promise<Order> {","d":"+","o":null,"n":9},{"t":"  const order = await loadOrder(req.orderId);","d":"+","o":null,"n":10},{"t":"  return refundOrder(order, inventory);","d":"+","o":null,"n":11},{"t":"}","d":"+","o":null,"n":12}],"members":[]}},"edges":[{"from":"src/orders.ts::calculateOrderTotal","to":"src/utils/money.ts::roundMoney","callText":"return roundMoney(items.reduce((total, item) => {","targetText":"export function roundMoney(amount: number): number {","status":"same"},{"from":"src/orders.ts::calculateOrderTotal","to":"src/orders.ts::Inventory","callText":"const product = inventory.getProduct(item.productId);","targetText":"getProduct(id: string): Product {","status":"same"},{"from":"src/orders.ts::reserveOrderStock","to":"src/orders.ts::Inventory","callText":"inventory.reserve(item.productId, item.quantity);","targetText":"reserve(productId: string, quantity: number): void {","status":"same"},{"from":"src/orders.ts::processOrder","to":"src/orders.ts::calculateOrderTotal","callText":"order.total = calculateOrderTotal(order.items, inventory);","targetText":"function calculateOrderTotal(","status":"same"},{"from":"src/orders.ts::processOrder","to":"src/orders.ts::reserveOrderStock","callText":"reserveOrderStock(order, inventory);","targetText":"function reserveOrderStock(","status":"same"},{"from":"src/orders.ts::processOrder","to":"src/audit/log.ts::recordAudit","callText":"recordAudit(\"order.paid\", order.id);","targetText":"export function recordAudit(action: string, orderId: string): void {","status":"same"},{"from":"src/api/checkout.ts::checkoutHandler","to":"src/api/checkout.ts::loadOrder","callText":"const order = await loadOrder(req.orderId);","targetText":"declare function loadOrder(id: string): Promise<Order>;","status":"same"},{"from":"src/api/checkout.ts::checkoutHandler","to":"src/orders.ts::processOrder","callText":"return processOrder(order, inventory);","targetText":"export function processOrder(","status":"same"},{"from":"src/refunds.ts::calculateRefundTotal","to":"src/utils/money.ts::roundMoney","callText":"return roundMoney(order.items.reduce((total, item) => {","targetText":"export function roundMoney(amount: number): number {","status":"new"},{"from":"src/refunds.ts::calculateRefundTotal","to":"src/orders.ts::Inventory","callText":"const product = inventory.getProduct(item.productId);","targetText":"getProduct(id: string): Product {","status":"new"},{"from":"src/refunds.ts::restockOrderItems","to":"src/orders.ts::Inventory","callText":"inventory.restock(item.productId, item.quantity);","targetText":"restock(productId: string, quantity: number): void {","status":"new"},{"from":"src/refunds.ts::refundOrder","to":"src/refunds.ts::calculateRefundTotal","callText":"const amount = calculateRefundTotal(order, inventory);","targetText":"function calculateRefundTotal(order: Order, inventory: Inventory): number {","status":"new"},{"from":"src/refunds.ts::refundOrder","to":"src/utils/money.ts::roundMoney","callText":"order.total = roundMoney(order.total - amount);","targetText":"export function roundMoney(amount: number): number {","status":"new"},{"from":"src/refunds.ts::refundOrder","to":"src/refunds.ts::restockOrderItems","callText":"restockOrderItems(order, inventory);","targetText":"function restockOrderItems(order: Order, inventory: Inventory): void {","status":"new"},{"from":"src/refunds.ts::refundOrder","to":"src/audit/log.ts::recordAudit","callText":"recordAudit(\"order.refunded\", order.id);","targetText":"export function recordAudit(action: string, orderId: string): void {","status":"new"},{"from":"src/api/refundHandler.ts::refundHandler","to":"src/api/refundHandler.ts::loadOrder","callText":"const order = await loadOrder(req.orderId);","targetText":"declare function loadOrder(id: string): Promise<Order>;","status":"new"},{"from":"src/api/refundHandler.ts::refundHandler","to":"src/refunds.ts::refundOrder","callText":"return refundOrder(order, inventory);","targetText":"export function refundOrder(order: Order, inventory: Inventory): Order {","status":"new"},{"from":"src/jobs/retry.ts::retryFailed","to":"src/orders.ts::processOrder","callText":"processOrder(order, inventory);","targetText":"export function processOrder(","status":"same"}],"fedges":[{"from":"src/orders.ts","to":"src/utils/money.ts","status":"same"},{"from":"src/orders.ts","to":"src/audit/log.ts","status":"same"},{"from":"src/api/checkout.ts","to":"src/orders.ts","status":"same"},{"from":"src/refunds.ts","to":"src/orders.ts","status":"new"},{"from":"src/refunds.ts","to":"src/utils/money.ts","status":"new"},{"from":"src/refunds.ts","to":"src/audit/log.ts","status":"new"},{"from":"src/api/refundHandler.ts","to":"src/orders.ts","status":"new"},{"from":"src/api/refundHandler.ts","to":"src/refunds.ts","status":"new"},{"from":"src/jobs/retry.ts","to":"src/orders.ts","status":"same"}],"fstat":{"src/api/checkout.ts":"same","src/api/refundHandler.ts":"new","src/audit/log.ts":"same","src/jobs/retry.ts":"same","src/orders.ts":"mod","src/refunds.ts":"new","src/utils/money.ts":"same"},"ftext":{"src/api/checkout.ts":[{"d":" ","t":"import { Inventory, Order, processOrder } from \"../orders\";","o":1,"n":1},{"d":" ","t":"","o":2,"n":2},{"d":" ","t":"declare function loadOrder(id: string): Promise<Order>;","o":3,"n":3},{"d":" ","t":"","o":4,"n":4},{"d":" ","t":"export async function checkoutHandler(","o":5,"n":5},{"d":" ","t":"  req: { orderId: string },","o":6,"n":6},{"d":" ","t":"  inventory: Inventory","o":7,"n":7},{"d":" ","t":"): Promise<Order> {","o":8,"n":8},{"d":" ","t":"  const order = await loadOrder(req.orderId);","o":9,"n":9},{"d":" ","t":"  return processOrder(order, inventory);","o":10,"n":10},{"d":" ","t":"}","o":11,"n":11}],"src/api/refundHandler.ts":[{"d":"+","t":"import { Inventory, Order } from \"../orders\";","o":null,"n":1},{"d":"+","t":"import { refundOrder } from \"../refunds\";","o":null,"n":2},{"d":"+","t":"","o":null,"n":3},{"d":"+","t":"declare function loadOrder(id: string): Promise<Order>;","o":null,"n":4},{"d":"+","t":"","o":null,"n":5},{"d":"+","t":"export async function refundHandler(","o":null,"n":6},{"d":"+","t":"  req: { orderId: string },","o":null,"n":7},{"d":"+","t":"  inventory: Inventory","o":null,"n":8},{"d":"+","t":"): Promise<Order> {","o":null,"n":9},{"d":"+","t":"  const order = await loadOrder(req.orderId);","o":null,"n":10},{"d":"+","t":"  return refundOrder(order, inventory);","o":null,"n":11},{"d":"+","t":"}","o":null,"n":12}],"src/audit/log.ts":[{"d":" ","t":"interface AuditEntry {","o":1,"n":1},{"d":" ","t":"  action: string;","o":2,"n":2},{"d":" ","t":"  orderId: string;","o":3,"n":3},{"d":" ","t":"  at: string;","o":4,"n":4},{"d":" ","t":"}","o":5,"n":5},{"d":" ","t":"","o":6,"n":6},{"d":" ","t":"export function recordAudit(action: string, orderId: string): void {","o":7,"n":7},{"d":" ","t":"  const entry: AuditEntry = {","o":8,"n":8},{"d":" ","t":"    action,","o":9,"n":9},{"d":" ","t":"    orderId,","o":10,"n":10},{"d":" ","t":"    at: new Date().toISOString(),","o":11,"n":11},{"d":" ","t":"  };","o":12,"n":12},{"d":" ","t":"","o":13,"n":13},{"d":" ","t":"  console.log(JSON.stringify(entry));","o":14,"n":14},{"d":" ","t":"}","o":15,"n":15}],"src/jobs/retry.ts":[{"d":" ","t":"import { Inventory, Order, processOrder } from \"../orders\";","o":1,"n":1},{"d":" ","t":"","o":2,"n":2},{"d":" ","t":"export function retryFailed(orders: Order[], inventory: Inventory): void {","o":3,"n":3},{"d":" ","t":"  for (const order of orders) {","o":4,"n":4},{"d":" ","t":"    processOrder(order, inventory);","o":5,"n":5},{"d":" ","t":"  }","o":6,"n":6},{"d":" ","t":"}","o":7,"n":7}],"src/orders.ts":[{"d":" ","t":"import { roundMoney } from \"./utils/money\";","o":1,"n":1},{"d":" ","t":"import { recordAudit } from \"./audit/log\";","o":2,"n":2},{"d":" ","t":"","o":3,"n":3},{"d":"-","t":"type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"cancelled\";","o":4,"n":null},{"d":"+","t":"type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"cancelled\" | \"refunded\";","o":null,"n":4},{"d":" ","t":"","o":5,"n":5},{"d":" ","t":"interface Product {","o":6,"n":6},{"d":" ","t":"  id: string;","o":7,"n":7},{"d":" ","t":"  name: string;","o":8,"n":8},{"d":" ","t":"  price: number;","o":9,"n":9},{"d":" ","t":"  stock: number;","o":10,"n":10},{"d":" ","t":"}","o":11,"n":11},{"d":" ","t":"","o":12,"n":12},{"d":" ","t":"export interface OrderItem {","o":13,"n":13},{"d":" ","t":"  productId: string;","o":14,"n":14},{"d":" ","t":"  quantity: number;","o":15,"n":15},{"d":" ","t":"}","o":16,"n":16},{"d":" ","t":"","o":17,"n":17},{"d":" ","t":"export interface Order {","o":18,"n":18},{"d":" ","t":"  id: string;","o":19,"n":19},{"d":" ","t":"  items: OrderItem[];","o":20,"n":20},{"d":" ","t":"  status: OrderStatus;","o":21,"n":21},{"d":" ","t":"  total: number;","o":22,"n":22},{"d":" ","t":"}","o":23,"n":23},{"d":" ","t":"","o":24,"n":24},{"d":" ","t":"export class Inventory {","o":25,"n":25},{"d":" ","t":"  constructor(private products: Map<string, Product>) {}","o":26,"n":26},{"d":" ","t":"","o":27,"n":27},{"d":" ","t":"  getProduct(id: string): Product {","o":28,"n":28},{"d":" ","t":"    const product = this.products.get(id);","o":29,"n":29},{"d":" ","t":"","o":30,"n":30},{"d":" ","t":"    if (!product) {","o":31,"n":31},{"d":" ","t":"      throw new Error(`Unknown product: ${id}`);","o":32,"n":32},{"d":" ","t":"    }","o":33,"n":33},{"d":" ","t":"","o":34,"n":34},{"d":" ","t":"    return product;","o":35,"n":35},{"d":" ","t":"  }","o":36,"n":36},{"d":" ","t":"","o":37,"n":37},{"d":" ","t":"  reserve(productId: string, quantity: number): void {","o":38,"n":38},{"d":" ","t":"    const product = this.getProduct(productId);","o":39,"n":39},{"d":" ","t":"","o":40,"n":40},{"d":" ","t":"    if (product.stock < quantity) {","o":41,"n":41},{"d":" ","t":"      throw new Error(`Insufficient stock for ${product.name}`);","o":42,"n":42},{"d":" ","t":"    }","o":43,"n":43},{"d":" ","t":"","o":44,"n":44},{"d":" ","t":"    product.stock -= quantity;","o":45,"n":45},{"d":" ","t":"  }","o":46,"n":46},{"d":"+","t":"","o":null,"n":47},{"d":"+","t":"  restock(productId: string, quantity: number): void {","o":null,"n":48},{"d":"+","t":"    const product = this.getProduct(productId);","o":null,"n":49},{"d":"+","t":"","o":null,"n":50},{"d":"+","t":"    product.stock += quantity;","o":null,"n":51},{"d":"+","t":"  }","o":null,"n":52},{"d":" ","t":"}","o":47,"n":53},{"d":" ","t":"","o":48,"n":54},{"d":" ","t":"function calculateOrderTotal(","o":49,"n":55},{"d":" ","t":"  items: OrderItem[],","o":50,"n":56},{"d":" ","t":"  inventory: Inventory","o":51,"n":57},{"d":" ","t":"): number {","o":52,"n":58},{"d":" ","t":"  return roundMoney(items.reduce((total, item) => {","o":53,"n":59},{"d":" ","t":"    const product = inventory.getProduct(item.productId);","o":54,"n":60},{"d":" ","t":"    return total + product.price * item.quantity;","o":55,"n":61},{"d":" ","t":"  }, 0));","o":56,"n":62},{"d":" ","t":"}","o":57,"n":63},{"d":" ","t":"","o":58,"n":64},{"d":" ","t":"function reserveOrderStock(","o":59,"n":65},{"d":" ","t":"  order: Order,","o":60,"n":66},{"d":" ","t":"  inventory: Inventory","o":61,"n":67},{"d":" ","t":"): void {","o":62,"n":68},{"d":" ","t":"  for (const item of order.items) {","o":63,"n":69},{"d":" ","t":"    inventory.reserve(item.productId, item.quantity);","o":64,"n":70},{"d":" ","t":"  }","o":65,"n":71},{"d":" ","t":"}","o":66,"n":72},{"d":" ","t":"","o":67,"n":73},{"d":" ","t":"export function processOrder(","o":68,"n":74},{"d":" ","t":"  order: Order,","o":69,"n":75},{"d":" ","t":"  inventory: Inventory","o":70,"n":76},{"d":" ","t":"): Order {","o":71,"n":77},{"d":" ","t":"  if (order.status !== \"pending\") {","o":72,"n":78},{"d":" ","t":"    throw new Error(\"Only pending orders can be processed\");","o":73,"n":79},{"d":" ","t":"  }","o":74,"n":80},{"d":" ","t":"","o":75,"n":81},{"d":" ","t":"  order.total = calculateOrderTotal(order.items, inventory);","o":76,"n":82},{"d":" ","t":"","o":77,"n":83},{"d":" ","t":"  reserveOrderStock(order, inventory);","o":78,"n":84},{"d":" ","t":"","o":79,"n":85},{"d":" ","t":"  order.status = \"paid\";","o":80,"n":86},{"d":" ","t":"  recordAudit(\"order.paid\", order.id);","o":81,"n":87},{"d":" ","t":"","o":82,"n":88},{"d":" ","t":"  return order;","o":83,"n":89},{"d":" ","t":"}","o":84,"n":90}],"src/refunds.ts":[{"d":"+","t":"import { Inventory, Order } from \"./orders\";","o":null,"n":1},{"d":"+","t":"import { roundMoney } from \"./utils/money\";","o":null,"n":2},{"d":"+","t":"import { recordAudit } from \"./audit/log\";","o":null,"n":3},{"d":"+","t":"","o":null,"n":4},{"d":"+","t":"function calculateRefundTotal(order: Order, inventory: Inventory): number {","o":null,"n":5},{"d":"+","t":"  return roundMoney(order.items.reduce((total, item) => {","o":null,"n":6},{"d":"+","t":"    const product = inventory.getProduct(item.productId);","o":null,"n":7},{"d":"+","t":"    return total + product.price * item.quantity;","o":null,"n":8},{"d":"+","t":"  }, 0));","o":null,"n":9},{"d":"+","t":"}","o":null,"n":10},{"d":"+","t":"","o":null,"n":11},{"d":"+","t":"function restockOrderItems(order: Order, inventory: Inventory): void {","o":null,"n":12},{"d":"+","t":"  for (const item of order.items) {","o":null,"n":13},{"d":"+","t":"    inventory.restock(item.productId, item.quantity);","o":null,"n":14},{"d":"+","t":"  }","o":null,"n":15},{"d":"+","t":"}","o":null,"n":16},{"d":"+","t":"","o":null,"n":17},{"d":"+","t":"export function refundOrder(order: Order, inventory: Inventory): Order {","o":null,"n":18},{"d":"+","t":"  if (order.status !== \"paid\") {","o":null,"n":19},{"d":"+","t":"    throw new Error(\"Only paid orders can be refunded\");","o":null,"n":20},{"d":"+","t":"  }","o":null,"n":21},{"d":"+","t":"","o":null,"n":22},{"d":"+","t":"  const amount = calculateRefundTotal(order, inventory);","o":null,"n":23},{"d":"+","t":"  order.total = roundMoney(order.total - amount);","o":null,"n":24},{"d":"+","t":"","o":null,"n":25},{"d":"+","t":"  restockOrderItems(order, inventory);","o":null,"n":26},{"d":"+","t":"","o":null,"n":27},{"d":"+","t":"  order.status = \"refunded\";","o":null,"n":28},{"d":"+","t":"  recordAudit(\"order.refunded\", order.id);","o":null,"n":29},{"d":"+","t":"","o":null,"n":30},{"d":"+","t":"  return order;","o":null,"n":31},{"d":"+","t":"}","o":null,"n":32}],"src/utils/money.ts":[{"d":" ","t":"// Rounds to whole cents so floating point sums don't leak into totals.","o":1,"n":1},{"d":" ","t":"export function roundMoney(amount: number): number {","o":2,"n":2},{"d":" ","t":"  return Math.round((amount + Number.EPSILON) * 100) / 100;","o":3,"n":3},{"d":" ","t":"}","o":4,"n":4}]}}</script>
+<script>
+const $ = id => document.getElementById(id);
+const D = JSON.parse($('data').textContent), B = D.blocks;
+const W = 96, H = 30;
+let mode = 'plan', zoom = null, sel = 0, scroll = 0, check = false;
+const FILES = [
+	{f: 'src/api/refundHandler.ts', x: 2, y: 4}, {f: 'src/refunds.ts', x: 34, y: 4},
+	{f: 'src/orders.ts', x: 2, y: 12}, {f: 'src/utils/money.ts', x: 34, y: 12}, {f: 'src/audit/log.ts', x: 66, y: 12},
+	{f: 'src/api/checkout.ts', x: 2, y: 19}, {f: 'src/jobs/retry.ts', x: 34, y: 19}
+];
+const BW = 29, BH = 5;
+const vis = f => mode !== 'base' || D.fstat[f] !== 'new';
+function mk() { return Array.from({length: H}, () => Array.from({length: W}, () => ({c: ' ', k: ''}))); }
+function put(g, x, y, t, k) { for (let i = 0; i < t.length; i++) if (y >= 0 && y < H && x + i >= 0 && x + i < W) g[y][x + i] = {c: t[i], k}; }
+function line(g, x, y, w, k, ch) { put(g, x, y, ch.repeat(w), k); }
+function box(g, x, y, w, h, k, dashed) {
+	const hz = dashed ? '- ' : '--';
+	let top = '+'; for (let i = 0; i < w - 2; i++) top += hz[i % 2]; top += '+';
+	put(g, x, y, top, k); put(g, x, y + h - 1, top, k);
+	for (let j = 1; j < h - 1; j++) { put(g, x, y + j, dashed && j % 2 ? ':' : '|', k); put(g, x + w - 1, y + j, dashed && j % 2 ? ':' : '|', k); }
+}
+const short = f => f.replace(/^src\//, '');
+const cut = (t, n) => t.length > n ? t.slice(0, n - 3) + '...' : t;
+function fileMeta(f) {
+	const st = D.fstat[f], bl = Object.values(B).filter(b => b.file === f && b.kind !== 'imports');
+	if (st === 'new') return ['NEW   ' + bl.length + ' blocks', 'k-g'];
+	if (st === 'mod') return ['MOD   ' + bl.filter(b => b.status === 'mod').length + ' blocks, +1 slot', 'k-y'];
+	const used = D.edges.some(e => e.status === 'new' && e.to.startsWith(f + '::'));
+	return [used ? 'used by new code' : bl.length + ' blocks', 'k-d'];
+}
+function mapScreen() {
+	const g = mk();
+	put(g, 0, 0, ' storyline', 'k-b'); put(g, 11, 0, 'refund support', 'k-w');
+	put(g, W - 40, 0, 'view: [b]ase [p]lan [a]pplied', 'k-d');
+	const vm = {base: 'b', plan: 'p', applied: 'a'}[mode], at = W - 40 + 'view: '.length + {b: 0, p: 5, a: 10}[vm];
+	line(g, 0, 1, W, 'k-d', '-');
+	if (mode !== 'base') put(g, 2, 3, (mode === 'plan' ? 'NEW FILES (proposed, not on disk)' : 'NEW FILES (written)'), 'k-g');
+	put(g, 2, 11, 'EXISTING', 'k-d');
+	FILES.forEach((F, i) => {
+		if (!vis(F.f)) return;
+		const st = D.fstat[F.f], isSel = FILES.indexOf(F) === sel;
+		const k = isSel ? 'k-b' : st === 'new' ? 'k-g' : st === 'mod' ? 'k-y' : 'k-d';
+		box(g, F.x, F.y, BW, BH, k, st === 'new' && mode === 'plan');
+		put(g, F.x + 2, F.y + 1, cut((st === 'new' ? '+ ' : st === 'mod' ? '~ ' : '  ') + short(F.f), BW - 4), isSel ? 'k-b' : st === 'new' ? 'k-g' : st === 'mod' ? 'k-y' : 'k-w');
+		const [m, mk2] = fileMeta(F.f);
+		put(g, F.x + 2, F.y + 3, cut(mode === 'base' && st !== 'same' ? '' : m, BW - 4), isSel ? 'k-b' : mk2);
+	});
+	// info pane for selected
+	const F = FILES[sel], y0 = 25;
+	line(g, 0, y0 - 1, W, 'k-d', '-');
+	put(g, 2, y0, short(F.f), 'k-b');
+	const calls = D.fedges.filter(e => e.from === F.f && (mode !== 'base' || e.status !== 'new')).map(e => short(e.to));
+	const by = D.fedges.filter(e => e.to === F.f && (mode !== 'base' || e.status !== 'new')).map(e => short(e.from));
+	put(g, 2, y0 + 1, cut('calls      ' + (calls.join('  ') || 'nothing'), W - 4), 'k-w');
+	put(g, 2, y0 + 2, cut('called by  ' + (by.join('  ') || 'nothing'), W - 4), 'k-w');
+	put(g, 2, y0 + 3, cut('enter: zoom in to the exact lines', W - 4), 'k-d');
+	if (check && mode === 'applied') {
+		const n = D.edges.filter(e => e.status === 'new').length;
+		put(g, 0, 17, ' CHECK ' + n + ' of ' + (n + 1) + ' proposed arrows confirmed. Not in the code: refundHandler -> recordAudit ', 'k-rbg');
+	}
+	put(g, 0, H - 1, ' arrows move  enter zoom  esc out  b/p/a view  c check  q quit', 'k-d');
+	return g;
+}
+function fileScreen() {
+	const F = FILES[sel], g = mk(), rows = D.ftext[F.f].filter(x => mode !== 'base' || x.d !== '+');
+	const st = D.fstat[F.f];
+	put(g, 0, 0, ' ' + F.f, 'k-b'); put(g, W - 30, 0, 'view: ' + mode, 'k-d');
+	line(g, 0, 1, W, 'k-d', '-');
+	const edgeAt = {};
+	D.edges.filter(e => e.from.startsWith(F.f + '::') && (mode !== 'base' || e.status !== 'new')).forEach(e => {
+		const t = e.callText.trim(); (edgeAt[t] = edgeAt[t] || []).push(e);
+	});
+	const vh = H - 5, max = Math.max(0, rows.length - vh); scroll = Math.min(Math.max(0, scroll), max);
+	rows.slice(scroll, scroll + vh).forEach((r, i) => {
+		const y = 2 + i, n = r.d === '-' ? r.o : r.n ?? r.o;
+		const mark = r.d === ' ' ? ' ' : r.d;
+		const k = r.d === '+' && mode !== 'base' ? 'k-gbg' : r.d === '-' ? 'k-rbg' : 'k-w';
+		const ed = edgeAt[r.t.trim()]; const tail = ed && r.d !== '-' ? ' --> ' + ed.map(e => e.to.split('::')[1]).join(', ') : '';
+		put(g, 1, y, String(n).padStart(3) + ' ' + mark + ' ', r.d === ' ' ? 'k-d' : k);
+		put(g, 7, y, cut(r.t, W - 8 - tail.length), k);
+		if (tail) put(g, 7 + Math.min(r.t.length, W - 8 - tail.length), y, tail, 'k-b');
+		if (r.d !== ' ') for (let x = 7 + Math.min(r.t.length, W - 8 - tail.length) + tail.length; x < W - 1; x++) g[y][x] = {c: ' ', k};
+	});
+	line(g, 0, H - 3, W, 'k-d', '-');
+	const add = D.ftext[F.f].filter(x => x.d === '+').length, del = D.ftext[F.f].filter(x => x.d === '-').length;
+	put(g, 1, H - 2, st === 'new' ? 'NEW file, ' + add + ' lines' : st === 'mod' ? '+' + add + ' -' + del + ' lines changed' : 'unchanged', st === 'new' ? 'k-g' : st === 'mod' ? 'k-y' : 'k-d');
+	put(g, W - 36, H - 2, 'j/k scroll   esc back to map', 'k-d');
+	put(g, 0, H - 1, ' up/down scroll  esc zoom out  p/a view', 'k-d');
+	return g;
+}
+function render() {
+	const g = zoom ? fileScreen() : mapScreen();
+	$('grid').innerHTML = g.map(r => {
+		let out = '', cur = null, buf = '';
+		const flush = () => { if (buf) out += '<span class="' + cur + '">' + buf + '</span>'; buf = ''; };
+		r.forEach(c => { if (c.k !== cur) { flush(); cur = c.k; } const ch = c.c === '<' ? '&lt;' : c.c === '>' ? '&gt;' : c.c === '&' ? '&amp;' : c.c; buf += '<i>' + ch + '</i>'; });
+		flush(); return '<span class="r">' + out + '</span>';
+	}).join('');
+	fit();
+	$('keys').innerHTML = (zoom ? [['up', 'scroll up'], ['down', 'scroll down'], ['esc', 'zoom out']] : [['left', '<'], ['up', '^'], ['down', 'v'], ['right', '>'], ['enter', 'enter zoom']]).concat([['b', 'b'], ['p', 'p'], ['a', 'a'], ['c', 'c check']]).map(([k, l]) => '<button data-k="' + k + '">' + l + '</button>').join('');
+	document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => key(b.dataset.k));
+}
+function fit() { const w = $('scr').clientWidth - 16; const fs = Math.max(5, Math.min(17, w / (W * 0.6))); $('grid').style.fontSize = fs + 'px'; }
+function move(dx, dy) {
+	const cur = FILES[sel]; let best = -1, bd = 1e9;
+	FILES.forEach((F, i) => { if (i === sel || !vis(F.f)) return; const ax = F.x - cur.x, ay = F.y - cur.y; if (dx && Math.sign(ax) !== dx) return; if (dy && Math.sign(ay) !== dy) return; const d = dx ? Math.abs(ax) + Math.abs(ay) * 3 : Math.abs(ay) + Math.abs(ax) * 3; if (d < bd) { bd = d; best = i; } });
+	if (best >= 0) sel = best;
+}
+function setMode(m) { mode = m; if (!vis(FILES[sel].f)) sel = 2; if (m !== 'applied') check = false; scroll = 0; }
+function key(k) {
+	if (k === 'p' || k === 'b' || k === 'a') setMode({p: 'plan', b: 'base', a: 'applied'}[k]);
+	else if (k === 'c') { if (mode !== 'applied') setMode('applied'); check = !check; }
+	else if (zoom) { if (k === 'esc') zoom = false; else if (k === 'up') scroll--; else if (k === 'down') scroll++; }
+	else { if (k === 'left') move(-1, 0); else if (k === 'right') move(1, 0); else if (k === 'up') move(0, -1); else if (k === 'down') move(0, 1); else if (k === 'enter') { zoom = true; scroll = 0; } }
+	render();
+}
+$('grid').addEventListener('keydown', e => { const m = {ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'enter', Escape: 'esc', j: 'down', k: 'up', p: 'p', a: 'a', b: 'b', c: 'c'}[e.key]; if (m) { e.preventDefault(); key(m); } });
+addEventListener('resize', fit);
+render(); document.fonts && document.fonts.ready.then(render);
+</script>
