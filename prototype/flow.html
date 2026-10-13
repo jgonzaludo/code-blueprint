@@ -1,0 +1,579 @@
+<title>Storyline Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: a step rail on the left drives one staged demo on the right.
+   The stage is an editor beside the storyline canvas, with a strip underneath that shows
+   what is actually running at each step (parser, language server, model) and which door was used. */
+:root {
+	--bg: #eef1f5;
+	--surface: #ffffff;
+	--surface-2: #f3f6f9;
+	--canvas: #f7f9fb;
+	--dot: #d3dbe4;
+	--ink: #14202c;
+	--ink-2: #38485a;
+	--muted: #5b6b7b;
+	--line: #cdd6df;
+	--accent: #1b6fc4;
+	--accent-soft: #dbe9f8;
+	--blue: #1b86c9;
+	--teal: #168a80;
+	--purple: #7b4fd0;
+	--orange: #c4570b;
+	--live: #1e8a4c;
+	--syn-kw: #a02f9c; --syn-str: #b4530b; --syn-cm: #6b7b8a; --syn-num: #1a6fb5;
+	--shadow: 0 1px 2px rgba(20, 32, 44, .08), 0 6px 18px rgba(20, 32, 44, .06);
+	--font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+		--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+		--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57; --live: #4fd88a;
+		--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+		--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+	--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+	--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57; --live: #4fd88a;
+	--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+	--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 44px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.top h1 { margin: 0; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; font-weight: 700; text-wrap: balance; }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+
+.main { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+/* step rail */
+.rail { display: flex; flex-direction: column; gap: 6px; }
+.rail .lab { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 2px 2px; }
+.stp { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 11px; font-weight: 500; }
+.stp:hover { border-color: var(--accent); }
+.stp .n { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.stp.done .n { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.stp.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.stp.on .n { background: var(--accent); color: #fff; border-color: transparent; }
+@media (max-width: 860px) {
+	.rail { flex-direction: row; flex-wrap: wrap; }
+	.rail .lab { width: 100%; }
+	.stp { padding: 7px 9px; font-size: 13px; }
+}
+.ctl { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+/* stage */
+.stagecol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.win { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.bar .tab { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+.bar .sp { flex: 1; }
+.key { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; background: var(--surface); color: var(--ink-2); }
+.key.pulse { animation: pulse 1.4s ease-in-out infinite; border-color: var(--accent); color: var(--accent); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); } }
+
+.panes { display: grid; grid-template-columns: minmax(180px, .72fr) minmax(0, 1.9fr); }
+@media (max-width: 700px) { .panes { grid-template-columns: minmax(0, 1fr); } .ed { min-height: 210px; } }
+.ed { position: relative; min-height: 260px; border-right: 1px solid var(--line); background: var(--canvas); }
+@media (max-width: 700px) { .ed { border-right: 0; border-bottom: 1px solid var(--line); } }
+.ed-in { position: absolute; inset: 0; overflow: auto; padding-block: 6px; font-family: var(--font-mono); font-size: 11px; line-height: 18px; }
+.ln { display: flex; white-space: pre; height: 18px; border-left: 3px solid transparent; transition: background .3s, border-color .3s; }
+.ln .no { flex: none; width: 30px; text-align: right; padding-right: 8px; color: var(--muted); user-select: none; font-variant-numeric: tabular-nums; }
+.ln.gap { color: var(--muted); }
+.ln.cut[data-b="cOT"], .ln.cut[data-b="pO"] { border-left-color: var(--blue); }
+.ln.hot { background: color-mix(in srgb, var(--blue) 18%, transparent); }
+.lens { height: 18px; padding-left: 33px; font-family: var(--font-ui); font-size: 11px; font-style: italic; color: var(--muted); white-space: nowrap; }
+.lens b { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; transition: color .3s; }
+.lens.glow b { color: var(--accent); }
+.kw { color: var(--syn-kw); } .st { color: var(--syn-str); } .cm { color: var(--syn-cm); } .nu { color: var(--syn-num); }
+
+.chat { position: absolute; inset: 0; background: var(--surface); padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: auto; opacity: 0; pointer-events: none; transition: opacity .35s; font-size: 12.5px; }
+.chat.on { opacity: 1; pointer-events: auto; }
+.msg { border-radius: 10px; padding: 7px 10px; max-width: 94%; }
+.msg.u { align-self: flex-end; background: var(--accent-soft); }
+.msg.c { background: var(--surface-2); border: 1px solid var(--line); }
+.tool { font-family: var(--font-mono); font-size: 11px; border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; color: var(--ink-2); background: var(--canvas); }
+.tool em { font-style: normal; color: var(--live); font-weight: 600; }
+
+/* canvas */
+.cv { position: relative; min-width: 0; background-color: var(--canvas); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; overflow-x: auto; overflow-y: hidden; }
+.fit { position: relative; }
+.world { position: absolute; left: 0; top: 0; width: 840px; height: 470px; transform-origin: 0 0; }
+.arrows { position: absolute; left: 0; top: 0; width: 840px; height: 470px; overflow: visible; pointer-events: none; z-index: 0; }
+.arr { fill: none; stroke: var(--blue); stroke-width: 1.7; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: .9; transition: stroke-dashoffset .8s ease, opacity .3s; }
+.arr.on { stroke-dashoffset: 0; }
+.arr.dim { opacity: .14; }
+.src { fill: var(--blue); opacity: 0; transition: opacity .3s .5s; }
+.src.on { opacity: 1; }
+.src.dim { opacity: .14; }
+.mk { fill: var(--blue); }
+
+.blk { position: absolute; z-index: 1; background: var(--surface); border: 1.5px solid var(--k); border-radius: 8px; overflow: hidden; transition: left .75s cubic-bezier(.3,.7,.2,1), top .75s cubic-bezier(.3,.7,.2,1), opacity .4s, box-shadow .25s; }
+.blk.fn { --k: var(--blue); }
+.blk.cls { --k: var(--purple); }
+.blk.ext { --k: var(--orange); border-style: dashed; }
+.blk.hid { opacity: 0; pointer-events: none; }
+.blk.dim { opacity: .35; }
+.blk.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 35%, transparent); }
+.blk.pop { animation: pop .5s ease; }
+@keyframes pop { from { transform: scale(.92); } to { transform: scale(1); } }
+.bh { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: color-mix(in srgb, var(--k) 12%, var(--surface)); }
+.bh .bk { font-family: var(--font-mono); font-size: 9.5px; color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); border-radius: 4px; padding: 0 4px; line-height: 14px; }
+.bh .bn { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bo { height: 20px; line-height: 20px; padding: 0 8px; font-family: var(--font-mono); font-size: 10px; color: var(--orange); border-top: 1px dashed color-mix(in srgb, var(--k) 50%, transparent); background: color-mix(in srgb, var(--k) 7%, var(--surface)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb { padding: 6px 0; font-family: var(--font-mono); font-size: 10px; line-height: 14px; }
+.bb div { white-space: pre; padding-inline: 8px; height: 14px; overflow: hidden; }
+.empty { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 13px; transition: opacity .3s; pointer-events: none; padding: 16px; }
+.empty.off { opacity: 0; }
+.empty span { border: 1px dashed var(--line); background: var(--surface); border-radius: 10px; padding: 10px 14px; }
+
+/* inspector */
+.insp { border-top: 1px solid var(--line); padding: 10px 12px; min-height: 118px; display: grid; gap: 8px; align-content: start; }
+.ih { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ih .bk { font-family: var(--font-mono); font-size: 10.5px; color: var(--blue); border: 1px solid color-mix(in srgb, var(--blue) 40%, transparent); border-radius: 4px; padding: 0 5px; }
+.ih .nm { font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+.ih .lc { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.ih .sp { flex: 1; }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.cols h4 { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 2px 7px; }
+.chip i { font-style: normal; color: var(--muted); }
+.chip.x { border-style: dashed; border-color: var(--orange); }
+.chip.none { color: var(--muted); border-style: dotted; }
+.ph { color: var(--muted); font-size: 13px; padding-block: 6px; }
+.sum { font-size: 13px; color: var(--ink-2); max-width: 78ch; min-height: 3.2em; }
+.sum.caret::after { content: ""; display: inline-block; width: 6px; height: 13px; background: var(--accent); margin-left: 2px; vertical-align: -2px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.act { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 4px 10px; font-size: 12.5px; font-weight: 600; }
+.act.glow { border-color: var(--accent); background: var(--accent); color: #fff; animation: pulse 1.4s ease-in-out infinite; }
+.act.busy { opacity: .7; }
+
+/* info strip */
+.strip { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 760px) { .strip { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.card h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.run { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; color: var(--muted); background: var(--surface-2); transition: all .25s; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: background .25s; }
+.pill.on { color: var(--ink); border-color: var(--live); background: color-mix(in srgb, var(--live) 12%, var(--surface)); font-weight: 600; }
+.pill.on::before { background: var(--live); }
+.runnote { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; min-height: 2.6em; }
+
+.doors { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; }
+.core { border: 1.5px solid var(--accent); background: var(--accent-soft); border-radius: 9px; padding: 7px 10px; font-weight: 600; font-size: 12.5px; line-height: 1.25; }
+.core small { display: block; font-weight: 400; color: var(--ink-2); font-size: 11.5px; }
+.dl { display: grid; gap: 6px; }
+.dr { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 5px 9px; font-size: 12.5px; color: var(--muted); transition: all .25s; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; }
+.dr small { font-family: var(--font-mono); font-size: 11px; }
+.dr.on { color: var(--ink); border-color: var(--live); background: color-mix(in srgb, var(--live) 12%, var(--surface)); font-weight: 600; }
+
+/* caption */
+.cap { display: grid; gap: 4px; }
+.cap h2 { margin: 0; font-size: 19px; letter-spacing: -.01em; text-wrap: balance; }
+.cap p { margin: 0; color: var(--ink-2); max-width: 74ch; }
+.foot { color: var(--muted); font-size: 12px; max-width: 90ch; }
+
+@media (prefers-reduced-motion: reduce) {
+	.blk, .arr, .src, .chat, .pill, .dr, .empty { transition: none !important; }
+	.key.pulse, .act.glow, .blk.pop, .sum.caret::after { animation: none !important; }
+}
+</style>
+
+<div class="app">
+	<header class="top">
+		<h1>Storyline Flow</h1>
+		<p>How the tool behaves from the first keypress to a repo-wide lookup. Step through it, or hit Play.</p>
+	</header>
+
+	<div class="main">
+		<aside class="rail" aria-label="Steps">
+			<div class="lab">Flow</div>
+			<div id="steps" class="rail" style="display:contents"></div>
+			<div class="ctl">
+				<button class="btn" id="prev">Back</button>
+				<button class="btn primary" id="play">Play</button>
+				<button class="btn" id="next">Next</button>
+			</div>
+		</aside>
+
+		<div class="stagecol">
+			<div class="cap" aria-live="polite">
+				<h2 id="ct"></h2>
+				<p id="cd"></p>
+			</div>
+
+			<div class="win">
+				<div class="bar">
+					<span class="tab">orders.ts</span>
+					<span class="sp"></span>
+					<span>Storyline panel</span>
+					<span class="key" id="key">⌘⇧L</span>
+				</div>
+				<div class="panes">
+					<div class="ed">
+						<div class="ed-in" id="ed"></div>
+						<div class="chat" id="chat">
+							<div class="msg u">What does src/orders.ts do? Use storyline.</div>
+							<div class="tool">storyline(file: "src/orders.ts")<br><em>11 blocks in this file, 2 pulled in from other files. Entry: processOrder</em></div>
+							<div class="msg c">processOrder is the entry point. It totals the order, reserves stock, then writes an audit line. I opened the storyline panel so you can follow along.</div>
+						</div>
+					</div>
+					<div class="cv" id="cv">
+						<div class="fit" id="fit">
+							<div class="world" id="world">
+								<svg class="arrows" id="svg" width="840" height="470" viewBox="0 0 840 470" aria-hidden="true">
+									<defs>
+										<marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="mk" d="M0 0 L8 4 L0 8 z"/></marker>
+									</defs>
+								</svg>
+							</div>
+							<div class="empty" id="empty"><span>Nothing yet. Press ⌘⇧L in the editor.</span></div>
+						</div>
+					</div>
+				</div>
+				<div class="insp" id="insp"></div>
+			</div>
+
+			<div class="strip">
+				<div class="card">
+					<h3>What is running</h3>
+					<div class="run">
+						<span class="pill" id="p-parser">Parser, this file</span>
+						<span class="pill" id="p-lsp">Language server</span>
+						<span class="pill" id="p-model">Model</span>
+					</div>
+					<p class="runnote" id="rn"></p>
+				</div>
+				<div class="card">
+					<h3>Which door</h3>
+					<div class="doors">
+						<div class="core">Core<small>parser + canvas</small></div>
+						<div class="dl">
+							<div class="dr" id="d-ext">Editor extension <small>VS Code, Cursor, Windsurf</small></div>
+							<div class="dr" id="d-cli">Local web viewer <small>npx storyline file.ts</small></div>
+							<div class="dr" id="d-ai">Claude skill / MCP <small>"storyline this file"</small></div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<p class="foot">Simplified demo: code is trimmed with … to fit the cards, and the two callers (checkoutHandler, retryFailed) and the imported files are made up for the walkthrough. The parsing and layout shown are what the working prototype does.</p>
+		</div>
+	</div>
+</div>
+
+<script>
+const W = 840, H = 470;
+const BLOCKS = {
+	pO: {kind: 'function', name: 'processOrder', cls: 'fn', w: 230, st: [10, 150], fp: [290, 130], lines: [
+		'function processOrder(order, inventory) {',
+		'  order.total = calculateOrderTotal(…);',
+		'  reserveOrderStock(order, inventory);',
+		'  order.status = "paid";',
+		'  recordAudit("order.paid", order.id);',
+		'  return order;', '}'].slice(0, 6)},
+	cOT: {kind: 'function', name: 'calculateOrderTotal', cls: 'fn', w: 240, st: [290, 10], fp: [10, 200], lines: [
+		'function calculateOrderTotal(items, inventory) {',
+		'  return roundMoney(items.reduce(…',
+		'    const product = inventory.getProduct(…)',
+		'    return total + product.price * …',
+		'  }, 0));']},
+	rOS: {kind: 'function', name: 'reserveOrderStock', cls: 'fn', w: 240, st: [290, 160], fp: [290, 10], lines: [
+		'function reserveOrderStock(order, inventory) {',
+		'  for (const item of order.items) {',
+		'    inventory.reserve(item.productId, …);',
+		'  }', '}']},
+	rA: {kind: 'function', name: 'recordAudit', cls: 'fn', ext: 'src/audit/log.ts', w: 240, st: [290, 300], fp: [590, 10], lines: [
+		'export function recordAudit(action, orderId) {',
+		'  const entry: AuditEntry = { action, … };',
+		'  console.log(JSON.stringify(entry));', '}']},
+	Inv: {kind: 'class', name: 'Inventory', cls: 'cls', w: 240, st: [590, 10], fp: [10, 10], lines: [
+		'constructor(private products: Map<…>) {}',
+		'getProduct(id: string): Product {',
+		'  const product = this.products.get(id);',
+		'  if (!product) throw new Error(…);',
+		'  return product;', '}',
+		'reserve(productId, quantity): void {',
+		'  const product = this.getProduct(productId);',
+		'  if (product.stock < quantity) throw …;',
+		'  product.stock -= quantity;']},
+	rM: {kind: 'function', name: 'roundMoney', cls: 'fn', ext: 'src/utils/money.ts', w: 240, st: [590, 300], fp: [590, 140], lines: [
+		'// Rounds to whole cents…',
+		'export function roundMoney(amount) {',
+		'  return Math.round(… * 100) / 100;', '}']},
+	ck: {kind: 'function', name: 'checkoutHandler', cls: 'fn', ext: 'src/api/checkout.ts', w: 230, st: [10, 10], fp: [10, 10], caller: true, lines: [
+		'async function checkoutHandler(req) {',
+		'  const order = await load(req.orderId);',
+		'  return processOrder(order, inventory);', '}']},
+	rt: {kind: 'function', name: 'retryFailed', cls: 'fn', ext: 'src/jobs/retry.ts', w: 230, st: [10, 330], fp: [10, 330], caller: true, lines: [
+		'function retryFailed(orders) {',
+		'  for (const o of orders) {',
+		'    processOrder(o, inventory);',
+		'  }', '}']}
+};
+const HEADH = 26, ORGH = 20, LH = 14;
+for (const k in BLOCKS) { const b = BLOCKS[k]; b.h = HEADH + (b.ext ? ORGH : 0) + 6 + b.lines.length * LH + 6; }
+const lineY = (k, i) => BLOCKS[k].st[1] + HEADH + (BLOCKS[k].ext ? ORGH : 0) + 6 + i * LH + 7;
+const EDGES = [
+	{f: 'pO', fl: 1, t: 'cOT'}, {f: 'pO', fl: 2, t: 'rOS'}, {f: 'pO', fl: 4, t: 'rA'},
+	{f: 'cOT', fl: 1, t: 'rM'}, {f: 'cOT', fl: 2, t: 'Inv', tl: 1}, {f: 'rOS', fl: 2, t: 'Inv', tl: 6},
+	{f: 'ck', t: 'pO', v: 'down', caller: true}, {f: 'rt', t: 'pO', v: 'up', caller: true}
+];
+
+const CODE = [
+	[1, 'import { roundMoney } from "./utils/money";'],
+	[2, 'import { recordAudit } from "./audit/log";'],
+	['gap'],
+	[49, 'function calculateOrderTotal(', 'cOT'], [50, '  items: OrderItem[],', 'cOT'], [51, '  inventory: Inventory', 'cOT'],
+	[52, '): number {', 'cOT'], [53, '  return roundMoney(items.reduce((total, item) => {', 'cOT'],
+	[54, '    const product = inventory.getProduct(item.productId);', 'cOT'],
+	[55, '    return total + product.price * item.quantity;', 'cOT'],
+	[56, '  }, 0));', 'cOT'], [57, '}', 'cOT'],
+	['gap'],
+	['lens'],
+	[68, 'function processOrder(', 'pO'], [69, '  order: Order,', 'pO'], [70, '  inventory: Inventory', 'pO'], [71, '): Order {', 'pO'],
+	[72, '  if (order.status !== "pending") {', 'pO'], [73, '    throw new Error("Only pending orders can be processed");', 'pO'],
+	[74, '  }', 'pO'], [75, '', 'pO'], [76, '  order.total = calculateOrderTotal(order.items, inventory);', 'pO'],
+	[77, '', 'pO'], [78, '  reserveOrderStock(order, inventory);', 'pO'], [79, '', 'pO'],
+	[80, '  order.status = "paid";', 'pO'], [81, '  recordAudit("order.paid", order.id);', 'pO'],
+	[82, '', 'pO'], [83, '  return order;', 'pO'], [84, '}', 'pO']
+];
+
+const STEPS = [
+	{t: 'Open a file, press one key', d: 'No setup. Press ⌘⇧L, or click the Show storyline lens above any function. Nothing has run yet, and nothing runs in the background while you read code.',
+	 nav: 'Open a file', run: [], note: 'Idle. No index, no daemon, no startup scan.', door: 'ext'},
+	{t: 'The file gets cut into blocks', d: 'The parser reads only this file and splits it into its real code blocks. Anything it uses from another file comes along as a dashed block with its origin path. One hop, no crawling.',
+	 nav: 'Cut into blocks', run: ['parser'], note: 'Reads the active file and resolves symbols with the type checker. Same project config the editor already uses.', door: 'ext'},
+	{t: 'Blocks line up into a storyline', d: 'Starting at the entry function, blocks flow right by call depth, with the classes they lean on at the end. Each arrow starts on the exact line that makes the call. Drag anything wherever you want.',
+	 nav: 'Storyline', run: ['parser'], note: 'Layout is plain math on the edges the parser found. No model involved.', door: 'ext'},
+	{t: 'Click a block to see how it is used', d: 'The editor jumps to the same lines. The inspector lists who uses the block and what it uses, with line numbers. This is all parser output, so there is still no model call.',
+	 nav: 'Click a block', run: [], note: 'Everything here is already computed. Only the editor and canvas talk to each other.', door: 'ext'},
+	{t: 'Ask who uses it across the repo', d: 'Only when you click. The language server finds references for this one symbol, and the callers show up as blocks with their real code and file path. Results are capped so a popular symbol cannot flood the canvas.',
+	 nav: 'Who uses it', run: ['lsp'], note: 'One find-references call for one symbol. The repo is never crawled.', door: 'ext'},
+	{t: 'Summarize usage', d: 'The model gets the block plus the callers and callees the parser found, and writes the summary. It cannot add connections the parser did not find. With no model available, you get the plain lists above.',
+	 nav: 'Summarize', run: ['model'], note: 'The only step that needs a model, and only because you pressed the button.', door: 'ext'},
+	{t: 'Claude can open the same thing', d: 'Ask Claude about a file and it calls the storyline tool, gets the real structure, and opens the panel for you. Same parser and same canvas, just a different door.',
+	 nav: 'Claude opens it', run: ['parser'], note: 'The tool call runs the same parser. Claude narrates the edges instead of guessing them.', door: 'ai'}
+];
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function hl(s) {
+	return esc(s).replace(/(\/\/.*$)|(&quot;[^&]*?&quot;|"[^"]*?")|\b(import|from|function|const|return|if|throw|new|class|async|await|export|for|of)\b|\b(\d+)\b/g,
+		(m, c, str, kw, nu) => c ? '<span class="cm">' + m + '</span>' : str ? '<span class="st">' + m + '</span>' : kw ? '<span class="kw">' + m + '</span>' : '<span class="nu">' + m + '</span>');
+}
+
+/* editor */
+const ed = $('ed');
+ed.innerHTML = CODE.map(r => {
+	if (r[0] === 'gap') return '<div class="ln gap"><span class="no"></span><span>  …</span></div>';
+	if (r[0] === 'lens') return '<div class="lens" id="lens"><b>Show storyline</b>  |  ⌘⇧L</div>';
+	return '<div class="ln" data-n="' + r[0] + '" data-b="' + (r[2] || '') + '"><span class="no">' + r[0] + '</span><span>' + hl(r[1]) + '</span></div>';
+}).join('');
+
+/* canvas */
+const world = $('world'), svg = $('svg');
+const cards = {};
+for (const k in BLOCKS) {
+	const b = BLOCKS[k];
+	const d = document.createElement('div');
+	d.className = 'blk ' + b.cls + (b.ext ? ' ext' : '') + ' hid';
+	d.style.width = b.w + 'px'; d.style.height = b.h + 'px';
+	d.style.left = b.fp[0] + 'px'; d.style.top = b.fp[1] + 'px';
+	d.innerHTML = '<div class="bh"><span class="bk">' + b.kind + '</span><span class="bn">' + b.name + '</span></div>'
+		+ (b.ext ? '<div class="bo">from ' + b.ext + '</div>' : '')
+		+ '<div class="bb">' + b.lines.map(l => '<div>' + hl(l) + '</div>').join('') + '</div>';
+	world.appendChild(d);
+	cards[k] = d;
+}
+const NS = 'http://www.w3.org/2000/svg';
+const arrs = EDGES.map(e => {
+	const f = BLOCKS[e.f], t = BLOCKS[e.t];
+	let x1, y1, x2, y2, dd;
+	if (e.v) {
+		x1 = f.st[0] + f.w / 2; x2 = t.st[0] + t.w / 2;
+		if (e.v === 'down') { y1 = f.st[1] + f.h; y2 = t.st[1]; } else { y1 = f.st[1]; y2 = t.st[1] + t.h; }
+		const m = (y2 - y1) / 2;
+		dd = 'M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + (y1 + m) + ' ' + x2 + ' ' + (y2 - m) + ' ' + x2 + ' ' + (y2 - (e.v === 'down' ? 3 : -3));
+	} else {
+		x1 = f.st[0] + f.w; y1 = lineY(e.f, e.fl);
+		x2 = t.st[0]; y2 = e.tl != null ? lineY(e.t, e.tl) : t.st[1] + 13;
+		const dx = Math.max(30, (x2 - x1) / 2);
+		dd = 'M' + x1 + ' ' + y1 + ' C' + (x1 + dx) + ' ' + y1 + ' ' + (x2 - dx) + ' ' + y2 + ' ' + (x2 - 3) + ' ' + y2;
+	}
+	const p = document.createElementNS(NS, 'path');
+	p.setAttribute('d', dd); p.setAttribute('pathLength', '1'); p.setAttribute('class', 'arr'); p.setAttribute('marker-end', 'url(#ah)');
+	svg.appendChild(p);
+	const c = document.createElementNS(NS, 'circle');
+	c.setAttribute('cx', x1); c.setAttribute('cy', y1); c.setAttribute('r', 3.2); c.setAttribute('class', 'src');
+	svg.appendChild(c);
+	return {e, p, c};
+});
+
+function fitCanvas() {
+	const cv = $('cv'), fit = $('fit');
+	const s = Math.min(1.3, Math.max(.62, cv.clientWidth / W));
+	fit.style.width = (W * s) + 'px'; fit.style.height = (H * s) + 'px';
+	world.style.transform = 'scale(' + s + ')';
+}
+new ResizeObserver(fitCanvas).observe($('cv'));
+fitCanvas();
+
+/* steps rail */
+$('steps').innerHTML = STEPS.map((s, i) => '<button class="stp" data-i="' + i + '"><span class="n">' + (i + 1) + '</span>' + s.nav + '</button>').join('');
+
+/* state */
+let step = -1, timers = [], playing = false, playT = null, callersShown = false;
+const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const chip = (n, l, p) => '<span class="chip' + (p ? ' x' : '') + '"><b>' + n + '</b> <i>' + (l || '') + (p ? ' ' + p : '') + '</i></span>';
+function inspector(mode) {
+	const el = $('insp');
+	if (mode === 'none') { el.innerHTML = '<div class="ph">Select a block to see where it comes up and how it is used.</div>'; return; }
+	if (mode === 'cOT') {
+		el.innerHTML = '<div class="ih"><span class="bk">function</span><span class="nm">calculateOrderTotal</span><span class="lc">src/orders.ts : 49-57</span><span class="sp"></span><button class="act" disabled>Summarize usage</button></div>'
+			+ '<div class="cols"><div><h4>Used by</h4><div class="chips">' + chip('processOrder', 'L76') + '</div></div>'
+			+ '<div><h4>Uses</h4><div class="chips">' + chip('roundMoney', 'L53', 'src/utils/money.ts') + chip('Inventory.getProduct', 'L54') + chip('OrderItem', 'L50') + chip('Inventory', 'L51') + '</div></div></div>';
+		return;
+	}
+	el.innerHTML = '<div class="ih"><span class="bk">function</span><span class="nm">processOrder</span><span class="lc">src/orders.ts : 68-84</span><span class="sp"></span>'
+		+ '<button class="act" id="find">Find callers in repo</button><button class="act" id="sumb">Summarize usage</button></div>'
+		+ '<div class="cols"><div><h4>Used by</h4><div class="chips" id="usedby">' + chip('nothing else in this file', '').replace('class="chip"', 'class="chip none"') + '</div></div>'
+		+ '<div><h4>Uses</h4><div class="chips">' + chip('calculateOrderTotal', 'L76') + chip('reserveOrderStock', 'L78') + chip('recordAudit', 'L81', 'src/audit/log.ts') + chip('Order') + chip('Inventory') + '</div></div></div>'
+		+ '<div class="sum" id="sum"></div>';
+	$('find').onclick = () => runFind(true);
+	$('sumb').onclick = () => typeSummary();
+}
+let findDone = false;
+function runFind(manual) {
+	const b = $('find'); if (!b || findDone) return;
+	findDone = true; b.classList.remove('glow'); b.classList.add('busy'); b.textContent = 'Asking the language server…';
+	later(() => {
+		callersShown = true; showCallers(true);
+		const u = $('usedby'); if (u) u.innerHTML = chip('checkoutHandler', 'L3', 'src/api/checkout.ts') + chip('retryFailed', 'L3', 'src/jobs/retry.ts');
+		if (b) { b.textContent = '2 callers found'; b.classList.remove('busy'); b.disabled = true; }
+	}, reduce ? 0 : 850);
+}
+const SUMMARY = 'Entry point of the file. It rejects any order that is not pending, totals it with calculateOrderTotal, reserves stock, marks the order paid and writes an audit line. In this repo it runs from checkoutHandler (src/api/checkout.ts) on every checkout and from retryFailed (src/jobs/retry.ts) when failed orders are retried.';
+function typeSummary() {
+	const s = $('sum'); if (!s) return;
+	const b = $('sumb'); if (b) { b.classList.remove('glow'); b.disabled = true; }
+	if (reduce) { s.textContent = SUMMARY; return; }
+	s.classList.add('caret'); let i = 0;
+	const tick = () => { i += 3; s.textContent = SUMMARY.slice(0, i); if (i < SUMMARY.length) later(tick, 16); else s.classList.remove('caret'); };
+	tick();
+}
+function showCallers(on) {
+	['ck', 'rt'].forEach(k => {
+		cards[k].classList.toggle('hid', !on);
+		if (on) { cards[k].classList.remove('pop'); void cards[k].offsetWidth; cards[k].classList.add('pop'); }
+	});
+	arrs.forEach(a => { if (a.e.caller) { a.p.classList.toggle('on', on); a.c.classList.toggle('on', on); } });
+	applyDim(sel);
+}
+let sel = null;
+function applyDim(s) {
+	const inc = k => !s || k === s;
+	for (const k in cards) { cards[k].classList.toggle('sel', k === s); cards[k].classList.toggle('dim', !!s && !isRelated(k, s)); }
+	arrs.forEach(a => { const hit = !s || a.e.f === s || a.e.t === s; a.p.classList.toggle('dim', !hit); a.c.classList.toggle('dim', !hit); });
+}
+function isRelated(k, s) { return k === s || EDGES.some(e => (e.f === s && e.t === k) || (e.t === s && e.f === k)); }
+
+function scrollEd(n) {
+	const row = ed.querySelector('[data-n="' + n + '"]'); if (!row) return;
+	ed.scrollTo({top: Math.max(0, row.offsetTop - 40), behavior: reduce ? 'auto' : 'smooth'});
+}
+
+function apply(i) {
+	timers.forEach(clearTimeout); timers = [];
+	const prev = step; step = i;
+	const S = STEPS[i];
+	$('ct').textContent = S.t; $('cd').textContent = S.d;
+	document.querySelectorAll('.stp').forEach((b, j) => { b.classList.toggle('on', j === i); b.classList.toggle('done', j < i); });
+	$('prev').disabled = i === 0; $('next').disabled = i === STEPS.length - 1;
+
+	// editor
+	$('key').classList.toggle('pulse', i === 0);
+	$('lens').classList.toggle('glow', i === 0);
+	ed.querySelectorAll('.ln[data-b]').forEach(r => r.classList.toggle('cut', i >= 1 && i !== 6));
+	ed.querySelectorAll('.ln[data-b]').forEach(r => {
+		const b = r.dataset.b;
+		r.classList.toggle('hot', (i === 3 && b === 'cOT') || ((i === 4 || i === 5) && b === 'pO'));
+	});
+	$('chat').classList.toggle('on', i === 6);
+	if (i === 0 || i === 6) scrollEd(68);
+	if (i === 3) scrollEd(49);
+	if (i === 4 || i === 5) scrollEd(68);
+
+	// canvas layout
+	const story = i >= 2;
+	for (const k in BLOCKS) {
+		const b = BLOCKS[k], pos = story ? b.st : b.fp;
+		cards[k].style.left = pos[0] + 'px'; cards[k].style.top = pos[1] + 'px';
+		if (!b.caller) cards[k].classList.toggle('hid', i < 1);
+	}
+	$('empty').classList.toggle('off', i >= 1);
+	const baseOn = i >= 2;
+	const delay = (prev === 1 && i === 2) ? 650 : 0;
+	arrs.forEach(a => {
+		if (a.e.caller) return;
+		a.p.style.transitionDelay = delay + 'ms';
+		if (!baseOn) { a.p.classList.remove('on'); a.c.classList.remove('on'); }
+		else { later(() => { a.p.classList.add('on'); a.c.classList.add('on'); }, reduce ? 0 : delay + 20); }
+	});
+
+	// callers + selection
+	findDone = false;
+	const wantCallers = i === 5;
+	callersShown = wantCallers;
+	showCallers(wantCallers);
+	sel = i === 3 ? 'cOT' : (i === 4 || i === 5) ? 'pO' : null;
+	applyDim(sel);
+	inspector(sel || 'none');
+	if (i === 5) { findDone = true; const f = $('find'); f.textContent = '2 callers found'; f.disabled = true; $('usedby').innerHTML = chip('checkoutHandler', 'L3', 'src/api/checkout.ts') + chip('retryFailed', 'L3', 'src/jobs/retry.ts'); later(typeSummary, 500); $('sumb').classList.add('glow'); }
+	if (i === 4) { findDone = false; $('find').classList.add('glow'); later(() => runFind(false), reduce ? 0 : 1500); }
+
+	// strip
+	['parser', 'lsp', 'model'].forEach(k => $('p-' + k).classList.toggle('on', S.run.includes(k)));
+	$('rn').textContent = S.note;
+	$('d-ext').classList.toggle('on', S.door === 'ext');
+	$('d-ai').classList.toggle('on', S.door === 'ai');
+	$('d-cli').classList.remove('on');
+}
+</script>
+<script>
+document.addEventListener('click', e => {
+	const b = e.target.closest('.stp'); if (b) { stopPlay(); apply(+b.dataset.i); }
+});
+$('prev').onclick = () => { stopPlay(); if (step > 0) apply(step - 1); };
+$('next').onclick = () => { stopPlay(); if (step < STEPS.length - 1) apply(step + 1); };
+function stopPlay() { playing = false; clearInterval(playT); $('play').textContent = 'Play'; }
+$('play').onclick = () => {
+	if (playing) { stopPlay(); return; }
+	playing = true; $('play').textContent = 'Pause';
+	if (step >= STEPS.length - 1) apply(0);
+	playT = setInterval(() => {
+		if (step < STEPS.length - 1) apply(step + 1); else stopPlay();
+	}, 6500);
+};
+apply(0);
+</script>

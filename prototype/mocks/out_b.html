@@ -1,0 +1,324 @@
+<title>Storyline Terminal View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: a keyboard-driven terminal UI. Boxes and arrows are drawn from characters on a grid,
+   a selection moves with the arrow keys, and an inspector line sits under the grid. */
+:root {
+	--bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f6f9; --canvas: #f7f9fb; --dot: #d3dbe4;
+	--ink: #14202c; --ink-2: #38485a; --muted: #5b6b7b; --line: #cdd6df;
+	--accent: #1b6fc4; --accent-soft: #dbe9f8;
+	--blue: #1b86c9; --teal: #168a80; --purple: #7b4fd0; --orange: #c4570b; --live: #1e8a4c;
+	--syn-kw: #a02f9c; --syn-str: #b4530b; --syn-cm: #6b7b8a; --syn-num: #1a6fb5;
+	--shadow: 0 1px 2px rgba(20, 32, 44, .08), 0 6px 18px rgba(20, 32, 44, .06);
+	/* terminal surfaces stay dark in both themes, so they are their own tokens */
+	--t-bg: #14181d; --t-bar: #1d232a; --t-ink: #d8e0e8; --t-dim: #8392a1; --t-line: #2c353f;
+	--t-blue: #6ab8ff; --t-green: #6fd58d; --t-red: #ff7b72; --t-orange: #ffa657; --t-purple: #c4a2ff; --t-teal: #5fd6c8; --t-yellow: #e8c75a;
+	--font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+		--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+		--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57; --live: #4fd88a;
+		--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+		--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
+	--ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
+	--blue: #4cb4f0; --teal: #4ad8c8; --purple: #a98cff; --orange: #ff9d57; --live: #4fd88a;
+	--syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+	--shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 44px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.top h1 { margin: 0; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; font-weight: 700; text-wrap: balance; }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 72ch; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.on { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 820px) { .notes { grid-template-columns: minmax(0, 1fr); } }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.note h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.note p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.foot { color: var(--muted); font-size: 12px; max-width: 90ch; }
+.kw { color: var(--syn-kw); } .st { color: var(--syn-str); } .cm { color: var(--syn-cm); } .nu { color: var(--syn-num); }
+
+/* canvas */
+.cv { position: relative; min-width: 0; background-color: var(--canvas); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; overflow-x: auto; overflow-y: hidden; }
+.fit { position: relative; }
+.world { position: absolute; left: 0; top: 0; width: 840px; height: 470px; transform-origin: 0 0; }
+.arrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 0; }
+.arr { fill: none; stroke: var(--blue); stroke-width: 1.7; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: .9; transition: stroke-dashoffset .8s ease, opacity .3s; }
+.arr.on { stroke-dashoffset: 0; }
+.arr.dim { opacity: .14; }
+.src { fill: var(--blue); }
+.src.dim { opacity: .14; }
+.mk { fill: var(--blue); }
+.blk { position: absolute; z-index: 1; background: var(--surface); border: 1.5px solid var(--k); border-radius: 8px; overflow: hidden; cursor: pointer; transition: opacity .3s, box-shadow .25s; }
+.blk.fn { --k: var(--blue); } .blk.cls { --k: var(--purple); } .blk.ext { --k: var(--orange); border-style: dashed; }
+.blk.dim { opacity: .35; }
+.blk.sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 35%, transparent); }
+.bh { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: color-mix(in srgb, var(--k) 12%, var(--surface)); }
+.bh .bk { font-family: var(--font-mono); font-size: 9.5px; color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); border-radius: 4px; padding: 0 4px; line-height: 14px; }
+.bh .bn { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bo { height: 20px; line-height: 20px; padding: 0 8px; font-family: var(--font-mono); font-size: 10px; color: var(--orange); border-top: 1px dashed color-mix(in srgb, var(--k) 50%, transparent); background: color-mix(in srgb, var(--k) 7%, var(--surface)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb { padding: 6px 0; font-family: var(--font-mono); font-size: 10px; line-height: 14px; }
+.bb div { white-space: pre; padding-inline: 8px; height: 14px; overflow: hidden; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 2px 7px; }
+.chip i { font-style: normal; color: var(--muted); }
+.chip.x { border-style: dashed; border-color: var(--orange); }
+.chip.none { color: var(--muted); border-style: dotted; }
+@media (prefers-reduced-motion: reduce) { .arr, .blk { transition: none !important; } }
+
+.term { background: var(--t-bg); color: var(--t-ink); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--t-line); min-width: 0; }
+.tbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--t-bar); border-bottom: 1px solid var(--t-line); font-family: var(--font-mono); font-size: 11.5px; color: var(--t-dim); }
+.dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--t-line); }
+.tscroll { overflow-x: auto; }
+#scr { margin: 0; padding: 12px 14px 4px; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; white-space: pre; outline: none; }
+#scr i { display: inline-block; width: 1ch; font-style: normal; text-align: center; overflow: visible; }
+#scr .b { color: var(--t-dim); } #scr .ext { color: var(--t-orange); } #scr .sel { color: var(--t-blue); font-weight: 600; }
+#scr .ar { color: #4a6f93; } #scr .hi { color: var(--t-blue); } #scr .dm { color: #2c3641; }
+#scr .ti { color: var(--t-ink); } #scr .cx { color: var(--t-dim); } #scr .bs { color: var(--t-ink); font-weight: 600; }
+#insp { padding: 6px 14px 10px; font-family: var(--font-mono); font-size: 12px; line-height: 18px; border-top: 1px solid var(--t-line); min-height: 94px; white-space: pre-wrap; color: var(--t-ink); }
+#insp .d { color: var(--t-dim); } #insp .o { color: var(--t-orange); } #insp .bl { color: var(--t-blue); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 8px 14px; background: var(--t-bar); border-top: 1px solid var(--t-line); font-family: var(--font-mono); font-size: 11.5px; color: var(--t-dim); }
+.keys button { border: 0; background: transparent; color: var(--t-dim); padding: 2px 4px; font: inherit; border-radius: 4px; }
+.keys button b { color: var(--t-ink); background: var(--t-line); border-radius: 3px; padding: 0 5px; margin-right: 4px; font-weight: 500; }
+.keys button:hover { color: var(--t-ink); }
+.hintline { color: var(--muted); font-size: 12.5px; }
+</style>
+
+<div class="app">
+	<header class="top">
+		<h1>Storyline Terminal View</h1>
+		<p>A keyboard-driven view for people who live in the terminal. Click the screen and use the arrow keys, or press the keys shown at the bottom.</p>
+	</header>
+	<div class="term">
+		<div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>storyline src/orders.ts</span></div>
+		<div class="tscroll"><pre id="scr" tabindex="0" aria-label="Storyline terminal view. Arrow keys move the selection."></pre></div>
+		<div id="insp"></div>
+		<div class="keys">
+			<button data-k="ArrowLeft"><b>←</b></button><button data-k="ArrowRight"><b>→</b></button><button data-k="ArrowUp"><b>↑</b></button><button data-k="ArrowDown"><b>↓</b>move</button>
+			<button data-k="u"><b>u</b>who uses it (repo)</button>
+			<button data-k="s"><b>s</b>summarize</button>
+			<button data-k="o"><b>o</b>open canvas</button>
+			<button data-k="q"><b>q</b>quit</button>
+		</div>
+	</div>
+	<p class="hintline" id="hint"></p>
+	<div class="notes">
+		<div class="note"><h3>What you get</h3><p>A real interactive map without leaving the terminal. Works over SSH, in tmux, in any editor's built-in terminal. No browser, no server.</p></div>
+		<div class="note"><h3>What you give up</h3><p>Code is shown as short trimmed lines, not full blocks, and there is no free dragging. The canvas is one keypress away for when you want the real thing.</p></div>
+		<div class="note"><h3>Cost to build</h3><p>The most work of the four. It is a separate renderer from the canvas, so it only makes sense if terminal users ask for it.</p></div>
+	</div>
+	<p class="foot">Demo project data. Callers across the repo and the summary text are made up for the mock.</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function hl(s) {
+	return esc(s).replace(/(\/\/.*$)|(&quot;[^&]*?&quot;|"[^"]*?")|\b(import|from|function|const|return|if|throw|new|class|async|await|export|for|of|type|interface|private|constructor)\b|\b(\d+)\b/g,
+		(m, c, str, kw, nu) => c ? '<span class="cm">' + m + '</span>' : str ? '<span class="st">' + m + '</span>' : kw ? '<span class="kw">' + m + '</span>' : '<span class="nu">' + m + '</span>');
+}
+const W = 840, H = 470, HEADH = 26, ORGH = 20, LH = 14;
+const BLOCKS = {
+	pO: {kind: 'function', name: 'processOrder', cls: 'fn', w: 230, st: [10, 150], rng: [68, 84], lines: [
+		'function processOrder(order, inventory) {', '  order.total = calculateOrderTotal(…);', '  reserveOrderStock(order, inventory);',
+		'  order.status = "paid";', '  recordAudit("order.paid", order.id);', '  return order;']},
+	cOT: {kind: 'function', name: 'calculateOrderTotal', cls: 'fn', w: 240, st: [290, 10], rng: [49, 57], lines: [
+		'function calculateOrderTotal(items, inventory) {', '  return roundMoney(items.reduce(…', '    const product = inventory.getProduct(…)',
+		'    return total + product.price * …', '  }, 0));']},
+	rOS: {kind: 'function', name: 'reserveOrderStock', cls: 'fn', w: 240, st: [290, 160], rng: [59, 66], lines: [
+		'function reserveOrderStock(order, inventory) {', '  for (const item of order.items) {', '    inventory.reserve(item.productId, …);', '  }', '}']},
+	rA: {kind: 'function', name: 'recordAudit', cls: 'fn', ext: 'src/audit/log.ts', w: 240, st: [290, 300], lines: [
+		'export function recordAudit(action, orderId) {', '  const entry: AuditEntry = { action, … };', '  console.log(JSON.stringify(entry));', '}']},
+	Inv: {kind: 'class', name: 'Inventory', cls: 'cls', w: 240, st: [590, 10], rng: [25, 47], lines: [
+		'constructor(private products: Map<…>) {}', 'getProduct(id: string): Product {', '  const product = this.products.get(id);', '  if (!product) throw new Error(…);',
+		'  return product;', '}', 'reserve(productId, quantity): void {', '  const product = this.getProduct(productId);', '  if (product.stock < quantity) throw …;', '  product.stock -= quantity;']},
+	rM: {kind: 'function', name: 'roundMoney', cls: 'fn', ext: 'src/utils/money.ts', w: 240, st: [590, 300], lines: [
+		'// Rounds to whole cents…', 'export function roundMoney(amount) {', '  return Math.round(… * 100) / 100;', '}']}
+};
+for (const k in BLOCKS) { const b = BLOCKS[k]; b.h = HEADH + (b.ext ? ORGH : 0) + 6 + b.lines.length * LH + 6; }
+const lineY = (k, i) => BLOCKS[k].st[1] + HEADH + (BLOCKS[k].ext ? ORGH : 0) + 6 + i * LH + 7;
+const EDGES = [
+	{f: 'pO', fl: 1, t: 'cOT'}, {f: 'pO', fl: 2, t: 'rOS'}, {f: 'pO', fl: 4, t: 'rA'},
+	{f: 'cOT', fl: 1, t: 'rM'}, {f: 'cOT', fl: 2, t: 'Inv', tl: 1}, {f: 'rOS', fl: 2, t: 'Inv', tl: 6}
+];
+const PATH = {rA: 'src/audit/log.ts', rM: 'src/utils/money.ts'};
+const USAGE = {
+	pO: {by: [], uses: [['calculateOrderTotal', 'L76'], ['reserveOrderStock', 'L78'], ['recordAudit', 'L81', 'src/audit/log.ts']]},
+	cOT: {by: [['processOrder', 'L76']], uses: [['roundMoney', 'L53', 'src/utils/money.ts'], ['Inventory.getProduct', 'L54']]},
+	rOS: {by: [['processOrder', 'L78']], uses: [['Inventory.reserve', 'L64']]},
+	rA: {by: [['processOrder', 'L81']], uses: [['AuditEntry', 'not expanded']]},
+	Inv: {by: [['calculateOrderTotal', 'L54'], ['reserveOrderStock', 'L64']], uses: []},
+	rM: {by: [['calculateOrderTotal', 'L53']], uses: []}
+};
+const RANGE = {pO: 'src/orders.ts : 68-84', cOT: 'src/orders.ts : 49-57', rOS: 'src/orders.ts : 59-66', Inv: 'src/orders.ts : 25-47', rA: 'src/audit/log.ts : 7-15', rM: 'src/utils/money.ts : 1-4'};
+const chip = (a, p) => '<span class="chip' + (a[2] && a[2].includes('/') ? ' x' : '') + '"><b>' + a[0] + '</b> <i>' + a[1] + (a[2] ? ' ' + a[2] : '') + '</i></span>';
+function usageHtml(k) {
+	const u = USAGE[k];
+	return '<div><h4>Used by</h4><div class="chips">' + (u.by.length ? u.by.map(chip).join('') : '<span class="chip none">nothing else in this file</span>') + '</div></div>'
+		+ '<div><h4>Uses</h4><div class="chips">' + (u.uses.length ? u.uses.map(chip).join('') : '<span class="chip none">nothing</span>') + '</div></div>';
+}
+
+function initCanvas(o) {
+	const world = o.world, NS = 'http://www.w3.org/2000/svg';
+	const svg = document.createElementNS(NS, 'svg');
+	svg.setAttribute('class', 'arrows'); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+	svg.innerHTML = '<defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="mk" d="M0 0 L8 4 L0 8 z"/></marker></defs>';
+	world.appendChild(svg);
+	const cards = {}, arrs = [];
+	for (const k in BLOCKS) {
+		const b = BLOCKS[k], d = document.createElement('div');
+		d.className = 'blk ' + b.cls + (b.ext ? ' ext' : ''); d.tabIndex = 0; d.dataset.k = k;
+		d.style.cssText = 'width:' + b.w + 'px;height:' + b.h + 'px;left:' + b.st[0] + 'px;top:' + b.st[1] + 'px';
+		d.innerHTML = '<div class="bh"><span class="bk">' + b.kind + '</span><span class="bn">' + b.name + '</span></div>'
+			+ (b.ext ? '<div class="bo">from ' + b.ext + '</div>' : '') + '<div class="bb">' + b.lines.map(l => '<div>' + hl(l) + '</div>').join('') + '</div>';
+		d.onclick = () => o.onSelect && o.onSelect(k);
+		d.onkeydown = e => { if (e.key === 'Enter') o.onSelect && o.onSelect(k); };
+		world.appendChild(d); cards[k] = d;
+	}
+	EDGES.forEach(e => {
+		const f = BLOCKS[e.f], t = BLOCKS[e.t];
+		const x1 = f.st[0] + f.w, y1 = lineY(e.f, e.fl), x2 = t.st[0], y2 = e.tl != null ? lineY(e.t, e.tl) : t.st[1] + 13;
+		const dx = Math.max(30, (x2 - x1) / 2);
+		const p = document.createElementNS(NS, 'path');
+		p.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + (x1 + dx) + ' ' + y1 + ' ' + (x2 - dx) + ' ' + y2 + ' ' + (x2 - 3) + ' ' + y2);
+		p.setAttribute('pathLength', '1'); p.setAttribute('class', 'arr'); p.setAttribute('marker-end', 'url(#ah)');
+		const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', x1); c.setAttribute('cy', y1); c.setAttribute('r', 3.2); c.setAttribute('class', 'src');
+		svg.appendChild(p); svg.appendChild(c); arrs.push({e, p, c});
+	});
+	requestAnimationFrame(() => requestAnimationFrame(() => arrs.forEach(a => a.p.classList.add('on'))));
+	let sel = null;
+	const rel = (k, s) => k === s || EDGES.some(e => (e.f === s && e.t === k) || (e.t === s && e.f === k));
+	function select(s) {
+		sel = s;
+		for (const k in cards) { cards[k].classList.toggle('sel', k === s); cards[k].classList.toggle('dim', !!s && !rel(k, s)); }
+		arrs.forEach(a => { const hit = !s || a.e.f === s || a.e.t === s; a.p.classList.toggle('dim', !hit); a.c.classList.toggle('dim', !hit); });
+	}
+	function fit() {
+		const s = Math.min(1.3, Math.max(.62, o.cv.clientWidth / W));
+		o.fit.style.width = (W * s) + 'px'; o.fit.style.height = (H * s) + 'px'; world.style.transform = 'scale(' + s + ')';
+	}
+	new ResizeObserver(fit).observe(o.cv); fit();
+	return {select, cards};
+}
+
+const C = 118, R = 25;
+const T = {
+	pO: {x: 1, y: 8, w: 32, t: 'fn processOrder', ls: ['if (order.status !== "pending") …', 'order.total = calculateOrderTotal(…);', 'reserveOrderStock(order, inventory);', 'order.status = "paid";', 'recordAudit("order.paid", order.id);', 'return order;']},
+	cOT: {x: 42, y: 0, w: 36, t: 'fn calculateOrderTotal', ls: ['return roundMoney(items.reduce(…', '  inventory.getProduct(item.productId)', '  total + product.price * …', '}, 0));']},
+	rOS: {x: 42, y: 8, w: 36, t: 'fn reserveOrderStock', ls: ['for (const item of order.items) {', '  inventory.reserve(item.productId, …);', '}']},
+	rA: {x: 42, y: 15, w: 36, ext: 1, from: 'src/audit/log.ts', t: 'fn recordAudit', ls: ['const entry: AuditEntry = {…};', 'console.log(JSON.stringify(entry));']},
+	Inv: {x: 84, y: 0, w: 33, t: 'class Inventory', ls: ['constructor(private products)', 'getProduct(id): Product {…}', 'reserve(productId, quantity) {…}']},
+	rM: {x: 84, y: 15, w: 33, ext: 1, from: 'src/utils/money.ts', t: 'fn roundMoney', ls: ['return Math.round(… * 100) / 100;']}
+};
+for (const k in T) T[k].h = T[k].ls.length + 2 + (T[k].from ? 1 : 0);
+const TE = [
+	{f: 'pO', fl: 1, t: 'cOT', gx: 36}, {f: 'pO', fl: 2, t: 'rOS', gx: 38}, {f: 'pO', fl: 4, t: 'rA', gx: 40},
+	{f: 'cOT', fl: 0, t: 'rM', gx: 81}, {f: 'cOT', fl: 1, t: 'Inv', tl: 1, gx: 80}, {f: 'rOS', fl: 1, t: 'Inv', tl: 2, gx: 82}
+];
+const ORDER = ['pO', 'cOT', 'rOS', 'rA', 'Inv', 'rM'];
+let sel = 'pO', msg = '';
+const wrap = (run, k) => '<span class="' + k + '">' + [...run].map(c => '<i>' + esc(c) + '</i>').join('') + '</span>';
+function fitFont() { const w = document.querySelector('.tscroll').clientWidth; $('scr').style.fontSize = Math.max(8.5, Math.min(13, (w - 28) / (C * 0.6))) + 'px'; }
+new ResizeObserver(fitFont).observe(document.querySelector('.tscroll'));
+function render() {
+	const ch = [], cl = [];
+	for (let y = 0; y < R; y++) { ch.push(new Array(C).fill(' ')); cl.push(new Array(C).fill('')); }
+	const put = (x, y, c, k) => {
+		const e = ch[y][x];
+		if (k.startsWith('ar') && (e === '│' && c === '─' || e === '─' && c === '│')) c = '┼';
+		ch[y][x] = c; cl[y][x] = k;
+	};
+	TE.forEach(e => {
+		const f = T[e.f], t = T[e.t];
+		const hit = e.f === sel || e.t === sel;
+		const k = 'ar ' + (hit ? 'hi' : (sel ? 'dm' : ''));
+		const x1 = f.x + f.w - 1, y1 = f.y + 1 + e.fl, x2 = t.x, y2 = t.y + 1 + (e.tl != null ? e.tl : 0);
+		for (let x = x1 + 1; x < e.gx; x++) put(x, y1, '─', k);
+		if (y1 !== y2) {
+			const dn = y2 > y1;
+			for (let y = Math.min(y1, y2) + 1; y < Math.max(y1, y2); y++) put(e.gx, y, '│', k);
+			put(e.gx, y1, dn ? '╮' : '╯', k); put(e.gx, y2, dn ? '╰' : '╭', k);
+		} else put(e.gx, y1, '─', k);
+		for (let x = e.gx + 1; x < x2 - 1; x++) put(x, y2, '─', k);
+		put(x2 - 1, y2, '>', k);
+	});
+	ORDER.forEach(id => {
+		const b = T[id], s = id === sel, k = s ? 'sel' : b.ext ? 'ext' : 'b';
+		for (let x = 1; x < b.w - 1; x++) { put(b.x + x, b.y, '─', k); put(b.x + x, b.y + b.h - 1, '─', k); }
+		for (let y = 1; y < b.h - 1; y++) { put(b.x, b.y + y, '│', k); put(b.x + b.w - 1, b.y + y, '│', k); for (let x = 1; x < b.w - 1; x++) put(b.x + x, b.y + y, ' ', ''); }
+		put(b.x, b.y, '╭', k); put(b.x + b.w - 1, b.y, '╮', k); put(b.x, b.y + b.h - 1, '╰', k); put(b.x + b.w - 1, b.y + b.h - 1, '╯', k);
+		const title = ' ' + b.t + ' ';
+		for (let i = 0; i < title.length && 2 + i < b.w - 1; i++) put(b.x + 2 + i, b.y, title[i], s ? 'sel' : b.ext ? 'ext' : 'bs');
+		const rows = (b.from ? [['from ' + b.from, 'ext']] : []).concat(b.ls.map(l => [l, 'cx']));
+		rows.forEach((r, i) => { const l = r[0], tx = l.length > b.w - 4 ? l.slice(0, b.w - 7) + '...' : l; for (let j = 0; j < tx.length; j++) put(b.x + 2 + j, b.y + 1 + i, tx[j], r[1]); });
+	});
+	$('scr').innerHTML = ch.map((row, y) => {
+		let out = '', run = '', rc = null;
+		row.forEach((c, x) => { const k = cl[y][x]; if (k !== rc) { if (run) out += wrap(run, rc); run = ''; rc = k; } run += c; });
+		if (run) out += wrap(run, rc);
+		return out;
+	}).join('\n');
+	const u = USAGE[sel], b = BLOCKS[sel];
+	const fmt = a => '<span class="bl">' + a[0] + '</span> <span class="d">' + a[1] + '</span>' + (a[2] ? ' <span class="' + (a[2].includes('/') ? 'o' : 'd') + '">' + a[2] + '</span>' : '');
+	$('insp').innerHTML = '<span class="bl">▸ ' + b.name + '</span>  <span class="d">' + RANGE[sel] + '</span>\n'
+		+ '  used by  ' + (u.by.length ? u.by.map(fmt).join('  ·  ') : '<span class="d">nothing else in this file</span>') + '\n'
+		+ '  uses     ' + (u.uses.length ? u.uses.map(fmt).join('  ·  ') : '<span class="d">nothing</span>') + '\n'
+		+ (msg ? '\n' + msg : '');
+}
+function nav(dir) {
+	const c = k => [T[k].x + T[k].w / 2, T[k].y + T[k].h / 2], [cx, cy] = c(sel);
+	let best = null, bd = 1e9;
+	ORDER.forEach(k => {
+		if (k === sel) return;
+		const [x, y] = c(k), dx = x - cx, dy = y - cy;
+		const ok = dir === 'ArrowRight' ? dx > 8 : dir === 'ArrowLeft' ? dx < -8 : dir === 'ArrowDown' ? dy > 1 && Math.abs(dx) < 20 : dy < -1 && Math.abs(dx) < 20;
+		if (!ok) return;
+		const d = (dir.includes('Left') || dir.includes('Right') ? Math.abs(dy) * 3 + Math.abs(dx) : Math.abs(dx) * 3 + Math.abs(dy));
+		if (d < bd) { bd = d; best = k; }
+	});
+	if (best) sel = best;
+}
+let typing = null;
+function key(k) {
+	clearTimeout(typing);
+	msg = '';
+	if (k.startsWith('Arrow')) nav(k);
+	else if (k === 'u') {
+		msg = '<span class="d">asking the language server for references to ' + BLOCKS[sel].name + ' …</span>';
+		render();
+		typing = setTimeout(() => {
+			msg = sel === 'pO' ? '<span class="d">2 callers found:</span>  <span class="bl">checkoutHandler</span> <span class="d">L3</span> <span class="o">src/api/checkout.ts</span>  ·  <span class="bl">retryFailed</span> <span class="d">L3</span> <span class="o">src/jobs/retry.ts</span>'
+				: '<span class="d">no callers outside this file</span>';
+			render();
+		}, 700); return;
+	} else if (k === 's') {
+		const t = sel === 'pO' ? 'Entry point. Rejects non-pending orders, totals them, reserves stock, marks paid and writes an audit line.' : 'Summary uses only the callers and callees listed above.';
+		let i = 0;
+		const tick = () => { i += 3; msg = '<span class="d">summary  </span>' + t.slice(0, i); render(); if (i < t.length) typing = setTimeout(tick, 18); };
+		tick(); return;
+	} else if (k === 'o') msg = '<span class="d">opening canvas in your browser →  http://localhost:4173/?file=src/orders.ts</span>';
+	else if (k === 'q') msg = '<span class="d">(q would quit and hand the terminal back)</span>';
+	render();
+}
+$('scr').addEventListener('keydown', e => { if (e.key.startsWith('Arrow') || 'usoq'.includes(e.key)) { e.preventDefault(); key(e.key); } });
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { $('scr').focus(); key(b.dataset.k); });
+$('hint').textContent = 'Click the screen first, then use the arrow keys, u, s, o or q.';
+render();
+</script>

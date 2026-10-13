@@ -1,0 +1,46 @@
+<title>Plan Map in the Browser</title>
+<style>
+/*PM_CSS*/
+/*TERM_CSS*/
+.cmd { background: var(--t-bg); color: var(--t-ink); border: 1px solid var(--t-line); border-radius: 10px; padding: 10px 14px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+.cmd .p { color: var(--t-green); }
+.chrome { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); min-width: 0; }
+.cb { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.url { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live { font-size: 12px; color: var(--add); font-weight: 600; white-space: nowrap; } .live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--add); margin-right: 6px; }
+.inner { padding: 12px; display: grid; gap: 12px; }
+.sim { font-size: 13px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; font-weight: 600; }
+.sim:hover { border-color: var(--accent); }
+.log { color: var(--muted); font-size: 12.5px; font-family: var(--font-mono); }
+</style>
+<div class="app">
+	<header class="top">
+		<h1>Plan Map in the Browser</h1>
+		<p>For any editor, or no editor. One command starts a local page that follows your repo. Ask Claude for a feature anywhere and the plan lands on this map, then updates itself when the files change.</p>
+	</header>
+	<div class="cmd"><span class="p">$</span> npx storyline plan
+storyline  watching ./src (7 files)  <span style="color:var(--t-blue)">http://localhost:4711</span>
+storyline  plan received: "refund support"   2 new files, 1 changed</div>
+	<div class="chrome">
+		<div class="cb"><span class="dots" style="display:flex;gap:6px"><i style="width:10px;height:10px;border-radius:50%;background:var(--line)"></i><i style="width:10px;height:10px;border-radius:50%;background:var(--line)"></i><i style="width:10px;height:10px;border-radius:50%;background:var(--line)"></i></span><span class="url">localhost:4711/plan</span><span class="live" id="live">watching</span></div>
+		<div class="inner">
+			<div class="ask"><div class="bubble"><b>You (in any editor, to Claude):</b> add refund support. Refund a paid order, put its items back in stock, and write an audit entry.</div>
+				<div class="seg" role="group" aria-label="View"><button data-m="base">Current code</button><button data-m="plan" class="on">Claude's plan</button><button data-m="applied">After applying</button></div>
+				<button class="sim" id="sim">Simulate: Claude writes the files</button></div>
+			<div class="log" id="log">plan received, nothing on disk yet</div>
+			<div class="work">
+				<div class="panel"><div class="vp-wrap"><div class="tools"><span class="lvl" id="lvl">Project map</span><button class="btn" id="zo" aria-label="Zoom out">-</button><button class="btn" id="zi" aria-label="Zoom in">+</button><button class="btn" id="fit">Fit</button></div>
+					<div class="vp" id="vp"><div class="world" id="world"></div></div><div class="hintbar" id="hint">Drag to pan. Ctrl or Cmd + scroll to zoom. Double click a file to zoom into it.</div></div><div class="insp" id="insp"></div></div>
+				<div class="panel side"><div class="sh" id="sh">Plan</div><div class="sb" id="sb"></div></div>
+			</div>
+		</div>
+	</div>
+	<p class="foot">Mock page. The map is the live Plan Map built from a real type-checked mini project. The command output and the file watcher behavior are illustrative, and the failed handler arrow is staged.</p>
+</div>
+<script type="application/json" id="data">__DATA__</script>
+<script>/*PM_JS*/</script>
+<script>
+$('sim').onclick = () => { $('log').textContent = 'change detected: src/refunds.ts, src/api/refundHandler.ts, src/orders.ts   parser re-checked 3 files'; setMode('applied'); };
+window.pmOnMode = m => { $('log').textContent = m === 'plan' ? 'plan received, nothing on disk yet' : m === 'applied' ? 'change detected: src/refunds.ts, src/api/refundHandler.ts, src/orders.ts   parser re-checked 3 files' : 'showing the repo as it is on disk'; };
+setMode('plan'); fitAll(0); addEventListener('load', () => fitAll(0));
+</script>
