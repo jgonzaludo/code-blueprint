@@ -14,6 +14,9 @@ export const defaultOptions: ts.CompilerOptions = {
   noEmit: true,
   skipLibCheck: true,
   lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'],
+  // js parses through the same pipeline, just without type checking it
+  allowJs: true,
+  checkJs: false,
 };
 
 export interface ParseOptions {
@@ -93,6 +96,9 @@ export function parseTree(rootDir: string, opts: ParseOptions = {}): ParsedTree 
   const host: ts.CompilerHost = {
     ...base,
     fileExists: (f) => (overlay.has(norm(f)) ? overlay.get(norm(f)) !== null : base.fileExists(f)),
+    // module resolution asks this before looking for files, so overlay-only dirs must say yes
+    directoryExists: (d) =>
+      [...overlay].some(([k, v]) => v !== null && k.startsWith(`${norm(d)}/`)) || (base.directoryExists?.(d) ?? false),
     readFile: (f) => (overlay.has(norm(f)) ? (overlay.get(norm(f)) ?? undefined) : base.readFile(f)),
     getSourceFile: (f, lang, onError, shouldCreate) => {
       const o = overlay.get(norm(f));
