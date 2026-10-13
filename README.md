@@ -36,6 +36,8 @@ A leading `:` means the line is in the same file as the parent. `--json` gives t
 
 ## How it works
 
+The user flows and screen references are in [docs/visuals](docs/visuals/README.md).
+
 The parser produces every block, line and solid arrow as fact. The model only plans, orders and narrates, and anything it claims is drawn dashed until the parser confirms it. Everything runs locally.
 
 ## Limits
