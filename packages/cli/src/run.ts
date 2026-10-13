@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildFileTree, isTestPath, parseTree, type FileTree } from '@blueprint/core';
 import { canOpenBrowser, openBrowser } from './open.js';
+import { defaultUiDir } from './paths.js';
+import { snapshotCommand } from './snapshot.js';
 import { checkCommand, planCommand } from './planCommands.js';
 import { skillCommand } from './skill.js';
 import { renderFileTree } from './print.js';
@@ -32,6 +33,7 @@ usage:
   blueprint plan apply <id>
   blueprint plan list
   blueprint check [id] [--json]
+  blueprint snapshot [--plan <id>] [--out map.html] [--all]
   blueprint skill install [--project] [--dir <skills dir>]
   blueprint skill print
 
@@ -41,6 +43,7 @@ commands:
   print    text tree of a file: entry points and what they call, in call order
   plan     draft a feature as full files, see it as an overlay, apply it
   check    after applying: which planned arrows the real code has
+  snapshot one self-contained html file of the map, works offline from file://
   skill    install the Claude Code skill so Claude drives all of this for you
 
 planned, not built yet: snapshot, tui
@@ -52,6 +55,9 @@ options:
   --baseline <b>      HEAD (default, diff against the last commit) or disk (files as they were at start)
   --relayout          throw away the cached file positions and lay out again
   --depth <n>         file hops to expand in print (default 1)
+  --out <file>        where snapshot writes (default blueprint-map.html)
+  --plan <id>         snapshot this plan (default: the newest)
+  --all               snapshot the whole project, not just a plan and one hop
   --project           install the skill for this project only (.claude/skills), not for you
   --dir <path>        install the skill under this skills directory
   --title <t>         plan title (plan new)
@@ -62,7 +68,7 @@ options:
   -h, --help          show this
 `;
 
-const PLANNED = new Set(['snapshot', 'tui']);
+const PLANNED = new Set(['tui']);
 
 // returns the exit code. 0 ok, 1 runtime problem, 2 bad usage.
 export async function run(argv: string[], io: IO): Promise<number> {
@@ -76,6 +82,9 @@ export async function run(argv: string[], io: IO): Promise<number> {
         depth: { type: 'string' },
         json: { type: 'boolean', default: false },
         'include-tests': { type: 'boolean', default: false },
+        out: { type: 'string' },
+        plan: { type: 'string' },
+        all: { type: 'boolean', default: false },
         dir: { type: 'string' },
         project: { type: 'boolean', default: false },
         title: { type: 'string' },
@@ -102,6 +111,12 @@ export async function run(argv: string[], io: IO): Promise<number> {
   const root0 = path.resolve(io.cwd, values.root ?? '.');
   if (!cmd || cmd === 'watch') return watchCommand(root0, values, io);
   if (cmd === 'status') return statusCommand(root0, values.json === true, io);
+  if (cmd === 'snapshot') {
+    return snapshotCommand(
+      { root: root0, out: values.out, plan: values.plan, all: values.all === true, includeTests: values['include-tests'] === true, baseline: values.baseline === 'disk' ? 'disk' : 'HEAD' },
+      io,
+    );
+  }
   if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true }, io);
   if (cmd === 'plan' || cmd === 'check') {
     const o = { title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
@@ -174,9 +189,6 @@ export async function run(argv: string[], io: IO): Promise<number> {
   return 0;
 }
 
-// the ui bundle sits next to the cli bundle (dist/ui), see tsup.config.ts
-const here = path.dirname(fileURLToPath(import.meta.url));
-export const defaultUiDir = path.join(here, 'ui');
 
 async function watchCommand(
   root: string,

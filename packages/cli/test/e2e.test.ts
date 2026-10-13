@@ -30,6 +30,8 @@ async function launch(): Promise<Browser | null> {
 }
 
 const ready = fs.existsSync(path.join(uiDir, 'index.html'));
+// on CI a missing ui build must fail, not quietly skip every browser test
+if (!ready && process.env.CI) throw new Error('packages/ui is not built, run pnpm -r build before the tests');
 
 beforeAll(async () => {
   if (!ready) return;

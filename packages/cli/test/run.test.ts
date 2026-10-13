@@ -71,7 +71,7 @@ describe('usage errors', () => {
     expect(r.out).toContain('usage:');
   });
   it('says planned commands are not built', async () => {
-    const r = await bp(['snapshot']);
+    const r = await bp(['tui']);
     expect(r.code).toBe(2);
     expect(r.err).toContain('not built yet');
   });
