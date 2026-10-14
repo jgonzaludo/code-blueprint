@@ -17,7 +17,7 @@ The map is built from real files, so you need them.
 
 ## Run it
 
-Use `blueprint` if it is on the PATH, otherwise `npx code-blueprint`. If neither can run here (no network or no Node), say that plainly instead of guessing, and offer the plan as text only.
+Use `blueprint` if it is on the PATH, otherwise `npx code-blueprint`. If neither can run here (no network or no Node), say that plainly instead of guessing, and offer the plan as text only. Install steps are in the README at https://github.com/jgonzaludo/code-blueprint.
 
 ## A question about code
 

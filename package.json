@@ -12,7 +12,8 @@
   "scripts": {
     "test": "pnpm -r --if-present test",
     "lint": "eslint .",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "sync:plugin": "node scripts/sync-plugin.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

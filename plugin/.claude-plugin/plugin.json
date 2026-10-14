@@ -1,0 +1,9 @@
+{
+  "name": "blueprint",
+  "description": "Show your code as a live map of real code, plan features on it before they are built, then check what actually got built. Needs the blueprint CLI (npm: code-blueprint).",
+  "author": { "name": "Joseph Gonzaludo" },
+  "homepage": "https://github.com/jgonzaludo/code-blueprint",
+  "repository": "https://github.com/jgonzaludo/code-blueprint",
+  "license": "MIT",
+  "keywords": ["code map", "plan", "typescript", "call graph", "visualization"]
+}

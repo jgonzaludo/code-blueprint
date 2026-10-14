@@ -1,0 +1,12 @@
+{
+  "name": "code-blueprint",
+  "description": "Blueprint: a live map of real code, with plan-then-check for features.",
+  "owner": { "name": "Joseph Gonzaludo" },
+  "plugins": [
+    {
+      "name": "blueprint",
+      "source": "./plugin",
+      "description": "Skill that drives the blueprint CLI: answer questions from the parser, plan features on the map, check what got built."
+    }
+  ]
+}

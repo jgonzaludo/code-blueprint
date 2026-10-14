@@ -2,12 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'tsup';
 
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { version: string };
+
 export default defineConfig({
   entry: ['src/cli.ts'],
   format: ['esm'],
   platform: 'node',
   target: 'node20',
   clean: true,
+  define: { __BLUEPRINT_VERSION__: JSON.stringify(pkg.version) },
   // core is a workspace package that ships as ts source, so fold it into the bundle.
   // typescript stays external, it's a real dependency.
   noExternal: ['@blueprint/core'],
