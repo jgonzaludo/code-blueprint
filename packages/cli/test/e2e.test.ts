@@ -184,6 +184,38 @@ run('plan view in a real browser', () => {
     if (root2) fs.rmSync(root2, { recursive: true, force: true });
   });
 
+  it('shows the review bar inside the plan view only once Claude marked it ready', async () => {
+    if (!browser || !srv2) return;
+    const { setReview, readPlan } = await import('../src/plans.js');
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(srv2.url);
+    await page.waitForSelector('.bp-blk');
+    // a plan nobody marked ready looks exactly like before: no review controls
+    expect(await page.locator('#bp-approve').count()).toBe(0);
+    expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
+
+    setReview(root2, 'refund-support', 'ready');
+    await page.waitForSelector('#bp-approve', { timeout: 8000 });
+    expect(await page.locator('#bp-changes').innerText()).toContain('Ready for your review');
+    await page.locator('#bp-approve').click();
+    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Approved.'), null, { timeout: 8000 });
+    expect(readPlan(root2, 'refund-support').plan.review?.state).toBe('approved');
+
+    // and changes with a note
+    setReview(root2, 'refund-support', 'ready');
+    await page.waitForSelector('#bp-changes-btn', { timeout: 8000 });
+    await page.locator('#bp-changes-btn').click();
+    await page.locator('#bp-note').fill('keep orders.ts as is');
+    await page.locator('#bp-send').click();
+    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Changes requested.'), null, { timeout: 8000 });
+    expect(readPlan(root2, 'refund-support').plan.review).toMatchObject({ state: 'changes', note: 'keep orders.ts as is' });
+    await page.screenshot({ path: path.join(outDir, 'plan-review.png') });
+    // back to drafting so the next test sees the plain plan view
+    setReview(root2, 'refund-support', 'drafting');
+    await ctx.close();
+  });
+
   it('leads with the plan, then shows 9 of 10 once it is applied', async () => {
     if (!browser || !srv2) return;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });

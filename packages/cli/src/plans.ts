@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PlanBaseline, PlanClaim, PlanFile } from '@blueprint/core';
+import type { PlanBaseline, PlanClaim, PlanFile, ReviewState } from '@blueprint/core';
 import { ensureStateDir } from './layout.js';
 
 // plans live on disk under .blueprint/plans/<id>/, so any agent can write one with no server running:
@@ -105,6 +105,11 @@ export function createPlan(root: string, id: string, title: string, baseline: Pl
   return plan;
 }
 
+// a plan that changed after it was marked ready or approved is a different plan, review again
+function resetReview(p: PlanFile): void {
+  if (p.review && p.review.state !== 'drafting') p.review = { state: 'drafting', at: new Date().toISOString() };
+}
+
 function update(root: string, id: string, fn: (p: PlanFile) => void): PlanFile {
   const f = path.join(planDir(root, id), 'plan.json');
   const plan = readJson<PlanFile>(f);
@@ -138,6 +143,7 @@ export function addDraft(root: string, id: string, rel: string, content: string)
   return update(root, id, (p) => {
     if (!p.files.includes(r)) p.files.push(r);
     p.delete = p.delete.filter((d) => d !== r);
+    resetReview(p);
   });
 }
 
@@ -148,12 +154,14 @@ export function removeFile(root: string, id: string, rel: string): PlanFile {
   return update(root, id, (p) => {
     p.files = p.files.filter((f) => f !== r);
     if (!p.delete.includes(r)) p.delete.push(r);
+    resetReview(p);
   });
 }
 
 export function addClaim(root: string, id: string, claim: PlanClaim): PlanFile {
   return update(root, id, (p) => {
     if (!p.claims.some((c) => c.from === claim.from && c.to === claim.to)) p.claims.push(claim);
+    resetReview(p);
   });
 }
 
@@ -175,4 +183,33 @@ export function applyPlan(root: string, id: string): { written: string[]; delete
     deleted.push(rel);
   }
   return { written, deleted };
+}
+
+export const reviewOf = (p: PlanFile): ReviewState => (p.files.length || p.delete.length ? (p.review?.state ?? 'drafting') : 'drafting');
+
+export function setReview(root: string, id: string, state: ReviewState, note?: string): PlanFile {
+  const cur = readJson<PlanFile>(path.join(planDir(root, id), 'plan.json'));
+  if (state === 'ready' && !cur.files.length && !cur.delete.length) throw new PlanError(`plan '${id}' has no files yet. add drafts first`);
+  if (state === 'approved' && reviewOf(cur) === 'drafting') throw new PlanError(`plan '${id}' is still drafting. mark it ready first: blueprint plan ready ${id}`);
+  return update(root, id, (p) => {
+    p.review = { state, at: new Date().toISOString(), ...(note ? { note: note.slice(0, 500) } : {}) };
+  });
+}
+
+export const archiveDir = (root: string) => path.join(root, '.blueprint', 'archive');
+
+// move a finished plan out of the way. it stays on disk, it just stops being listed.
+export function archivePlan(root: string, id: string): string {
+  const from = planDir(root, id);
+  const to = path.join(archiveDir(root), id);
+  fs.mkdirSync(archiveDir(root), { recursive: true });
+  if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true });
+  fs.renameSync(from, to);
+  return to;
+}
+
+// forget a plan completely. only ever touches its own folder under .blueprint/plans.
+export function dropPlan(root: string, id: string): void {
+  checkId(id);
+  fs.rmSync(planDir(root, id), { recursive: true, force: true });
 }

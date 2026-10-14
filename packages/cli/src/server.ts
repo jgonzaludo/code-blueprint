@@ -6,6 +6,7 @@ import type { Graph } from '@blueprint/core';
 import { headSha } from './git.js';
 import { GraphBuilder } from './graph.js';
 import { ensureStateDir } from './layout.js';
+import { archivePlan, checkId, resolveId, setReview, PlanError } from './plans.js';
 import { computeState, type MapState } from './state.js';
 import { openInEditor } from './open.js';
 
@@ -156,7 +157,37 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       const p = url.pathname;
       if (req.method === 'GET' && p === '/api/state') {
         if (!state) await refresh();
+        // the picker asks for a specific plan. the default (newest) is the cached state.
+        const want = url.searchParams.get('plan');
+        if (want && state && state.plan?.id !== want && state.plans.some((x) => x.id === want)) {
+          const other = await computeState(builder, { root, includeTests: opts.includeTests, planId: want, writeCache: false });
+          return json(res, 200, { rev: state.rev, ...other });
+        }
         return json(res, 200, state);
+      }
+      // the review buttons on the page. same effect as `blueprint plan approve|changes` and `plan archive`.
+      if (req.method === 'POST' && (p === '/api/plan/review' || p === '/api/plan/archive')) {
+        let body: { id?: unknown; state?: unknown; note?: unknown };
+        try {
+          body = JSON.parse(await readBody(req)) as typeof body;
+        } catch {
+          return json(res, 400, { error: 'bad json' });
+        }
+        try {
+          if (typeof body.id !== 'string') return json(res, 400, { error: 'id required' });
+          checkId(body.id);
+          resolveId(root, body.id);
+          if (p === '/api/plan/archive') archivePlan(root, body.id);
+          else {
+            if (body.state !== 'approved' && body.state !== 'changes') return json(res, 400, { error: 'state must be approved or changes' });
+            setReview(root, body.id, body.state, typeof body.note === 'string' ? body.note : undefined);
+          }
+        } catch (e) {
+          if (e instanceof PlanError) return json(res, 400, { error: e.message });
+          throw e;
+        }
+        await refresh();
+        return json(res, 200, { rev: state?.rev ?? 0 });
       }
       if (req.method === 'GET' && p === '/api/status') {
         return json(res, 200, {

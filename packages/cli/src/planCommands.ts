@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { baselineOf, checkPlan, isTestPath, parseTree, planGraph, type ParsedTree, type PlanFile } from '@blueprint/core';
 import {
-  PlanError, addClaim, addDraft, applyPlan, baseOverlay, checkRel, createPlan, listPlans, readPlan, removeFile, resolveId,
+  PlanError, addClaim, addDraft, applyPlan, archivePlan, baseOverlay, checkRel, createPlan, dropPlan, listPlans, readPlan, removeFile, resolveId, reviewOf, setReview,
 } from './plans.js';
 import { renderCheck, renderPlanList, renderPlanShow } from './planText.js';
 import type { IO } from './run.js';
 
 interface Opts {
+  yes?: boolean;
   title?: string;
   from?: string;
   note?: string;
@@ -107,14 +108,63 @@ export async function planCommand(root: string, args: string[], o: Opts, io: IO)
         } else io.out(`${renderPlanShow(g, plan, state)}\n`);
         return 0;
       }
+      case 'ready': {
+        const id = resolveId(root, a);
+        const plan = setReview(root, id, 'ready');
+        out(io, o.json, plan.review, `plan '${id}' is ready for review. next: show it to the user, then wait for their go`);
+        return 0;
+      }
+      case 'approve': {
+        const id = resolveId(root, a);
+        const plan = setReview(root, id, 'approved');
+        out(io, o.json, plan.review, `plan '${id}' approved. apply it with: blueprint plan apply ${id}`);
+        return 0;
+      }
+      case 'changes': {
+        const id = resolveId(root, a);
+        const plan = setReview(root, id, 'changes', o.note);
+        out(io, o.json, plan.review, `changes requested on plan '${id}'${o.note ? `: ${o.note}` : ''}`);
+        return 0;
+      }
+      case 'status': {
+        const id = resolveId(root, a);
+        const { plan, overlay } = readPlan(root, id);
+        const applied = isApplied(root, plan, overlay);
+        const review = plan.review;
+        const s = { id, title: plan.title, state: reviewOf(plan), applied, note: review?.note, at: review?.at, files: plan.files.length, claims: plan.claims.length };
+        out(io, o.json, s, `${id}: ${applied ? 'applied' : s.state}${review?.note ? ` (${review.note})` : ''}, ${s.files} files, ${s.claims} claims`);
+        return 0;
+      }
+      case 'drop': {
+        const id = resolveId(root, a);
+        dropPlan(root, id);
+        out(io, o.json, { dropped: id }, `plan '${id}' dropped`);
+        return 0;
+      }
+      case 'archive': {
+        const id = resolveId(root, a);
+        const to = archivePlan(root, id);
+        out(io, o.json, { archived: id, to }, `plan '${id}' archived to ${to}`);
+        return 0;
+      }
       case 'apply': {
         const id = resolveId(root, a);
+        // review is opt-in. a plan nobody marked ready applies exactly as before. once someone has
+        // asked for a review (ready) or the user asked for changes, apply waits for the go.
+        const cur = readPlan(root, id).plan;
+        const rs = reviewOf(cur);
+        if ((rs === 'ready' || rs === 'changes') && !o.yes) {
+          throw new PlanError(
+            `plan '${id}' is ${rs === 'ready' ? 'waiting for review' : 'waiting on requested changes'}. ` +
+              `get the user's go, then: blueprint plan approve ${id}  (or pass --yes if they said go in chat)`,
+          );
+        }
         const r = applyPlan(root, id);
         out(io, o.json, r, `applied plan '${id}': wrote ${r.written.length} files, deleted ${r.deleted.length}. next: blueprint check ${id}`);
         return 0;
       }
       default:
-        io.err('usage: blueprint plan <new|add|rm|claim|list|show|apply> ...\n');
+        io.err('usage: blueprint plan <new|add|rm|claim|ready|approve|changes|status|list|show|apply|archive|drop> ...\n');
         return 2;
     }
   } catch (e) {

@@ -26,7 +26,7 @@ blueprint plan apply refund-support
 blueprint check              # 9 of 10 planned arrows confirmed, one not in the code
 ```
 
-A draft is parsed as an overlay on your real files and never touches them until you apply. Arrows the parser reads from draft code are dashed green, claims (calls the plan says will exist but no draft contains) are dashed with a hollow head, and after applying each one is confirmed, missing ("not in the code") or unplanned. 
+A draft is parsed as an overlay on your real files and never touches them until you apply. If Claude marks a plan `ready`, the plan view shows Approve and Ask for changes, and `plan apply` waits for your go. Plans nobody marked ready apply exactly as before. Arrows the parser reads from draft code are dashed green, claims (calls the plan says will exist but no draft contains) are dashed with a hollow head, and after applying each one is confirmed, missing ("not in the code") or unplanned. 
 ## Share a map
 
 ```bash
