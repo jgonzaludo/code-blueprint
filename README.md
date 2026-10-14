@@ -27,6 +27,15 @@ blueprint check              # 9 of 10 planned arrows confirmed, one not in the 
 ```
 
 A draft is parsed as an overlay on your real files and never touches them until you apply. Arrows the parser reads from draft code are dashed green, claims (calls the plan says will exist but no draft contains) are dashed with a hollow head, and after applying each one is confirmed, missing ("not in the code") or unplanned. 
+## Share a map
+
+```bash
+blueprint snapshot --out map.html          # newest plan and one hop around it
+blueprint snapshot --all --out map.html    # the whole project
+```
+
+One HTML file with the page, fonts and data inside. No server, no network, works from `file://`, and it stays small enough to publish as an artifact. It is a snapshot, not live.
+
 ## Use it from Claude Code
 
 ```bash

@@ -498,10 +498,11 @@ function inspect(): void {
   el.innerHTML =
     `<div class="bp-ih"><span class="bp-bk">${b.kind}</span><span class="bp-nm">${esc(b.name)}</span>${st}</div>` +
     `<div class="bp-loc">${esc(b.file)} : ${lineRange(b)}</div>` +
-    `<button class="bp-btn" id="bp-openbtn">Open in editor</button><span class="bp-none" id="bp-openmsg"></span>` +
+    (isSnapshot ? '' : `<button class="bp-btn" id="bp-openbtn">Open in editor</button><span class="bp-none" id="bp-openmsg"></span>`) +
     `<div class="bp-grp"><h4>Used by</h4>${list(by, 'by')}</div><div class="bp-grp"><h4>Uses</h4>${list(uses, 'uses')}</div>`;
   el.querySelectorAll<HTMLElement>('[data-go]').forEach((c) => (c.onclick = () => goBlock(c.dataset.go as string)));
-  $('bp-openbtn').onclick = async () => {
+  const openBtn = document.getElementById('bp-openbtn');
+  if (openBtn) openBtn.onclick = async () => {
     const msg = $('bp-openmsg');
     msg.textContent = '';
     try {
@@ -638,11 +639,19 @@ vp.addEventListener('click', (e) => {
   // blocks are siblings of file cards in the world, not children, so check both
   if (!moved && !t.closest('.bp-file') && !t.closest('.bp-blk') && !t.closest('.bp-tools')) select(null);
 });
+// a snapshot has its data baked into the page and no server behind it
+const embedded = document.getElementById('bp-data');
+const isSnapshot = embedded !== null;
+
 let first = true;
 async function load(): Promise<void> {
-  const r = await fetch('/api/state');
-  if (!r.ok) throw new Error(`state ${r.status}`);
-  const next = (await r.json()) as State;
+  let next: State;
+  if (embedded) next = JSON.parse(embedded.textContent ?? '') as State;
+  else {
+    const r = await fetch('/api/state');
+    if (!r.ok) throw new Error(`state ${r.status}`);
+    next = (await r.json()) as State;
+  }
   const prev = state;
   const prevSigs = prev ? new Map(Object.entries(prev.graph.blocks).map(([id, b]) => [id, sigOf(b)])) : null;
   state = next;
@@ -663,6 +672,13 @@ async function load(): Promise<void> {
 
 function connect(): void {
   const live = $('bp-live');
+  if (isSnapshot) {
+    const when = state?.graph.meta?.parsedAt ? new Date(state.graph.meta.parsedAt).toLocaleString() : '';
+    live.textContent = when ? `snapshot, ${when}` : 'snapshot';
+    live.className = 'bp-live';
+    $('bp-relayout').hidden = true;
+    return;
+  }
   const es = new EventSource('/api/events');
   es.addEventListener('rev', (ev) => {
     const rev = (JSON.parse((ev as MessageEvent).data) as { rev: number }).rev;
@@ -718,7 +734,7 @@ new ResizeObserver(() => {
 
 apply();
 connect();
-void load().catch((e: unknown) => {
+void load().then(() => { if (isSnapshot) connect(); }).catch((e: unknown) => {
   $('bp-live').textContent = 'could not load';
   $('bp-live').className = 'bp-live off';
   $('bp-meta').textContent = e instanceof Error ? e.message : String(e);

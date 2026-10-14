@@ -181,3 +181,36 @@ export function appliedGraph(base: ParsedTree, disk: ParsedTree, plan: PlanFile,
   };
   return graph;
 }
+
+// keep only some files and what touches them. used to make a small snapshot of a plan:
+// the plan's files plus one hop of neighbours.
+export function restrictGraph(g: Graph, keep: Set<string>): Graph {
+  const fileOf = (id: string) => id.split('::')[0] as string;
+  const blocks: Graph['blocks'] = {};
+  for (const [id, b] of Object.entries(g.blocks)) if (keep.has(b.file)) blocks[id] = b;
+  return {
+    ...g,
+    blocks,
+    edges: g.edges.filter((e) => keep.has(fileOf(e.from)) && keep.has(fileOf(e.to))),
+    fedges: g.fedges.filter((e) => keep.has(e.from) && keep.has(e.to)),
+    fstat: Object.fromEntries(Object.entries(g.fstat).filter(([f]) => keep.has(f))),
+    ftext: Object.fromEntries(Object.entries(g.ftext).filter(([f]) => keep.has(f))),
+  };
+}
+
+// the files a plan touches plus every file one import away, in either direction
+export function planNeighbourhood(g: Graph, planFiles: Iterable<string>): Set<string> {
+  const keep = new Set<string>(planFiles);
+  const core = new Set(keep);
+  for (const e of g.fedges) {
+    if (core.has(e.from)) keep.add(e.to);
+    if (core.has(e.to)) keep.add(e.from);
+  }
+  for (const e of g.edges) {
+    const f = e.from.split('::')[0] as string;
+    const t = e.to.split('::')[0] as string;
+    if (core.has(f)) keep.add(t);
+    if (core.has(t)) keep.add(f);
+  }
+  return keep;
+}

@@ -145,7 +145,7 @@ button:focus-visible, .bp-blk:focus-visible, .bp-vp:focus-visible { outline: 2px
 
 /* modes */
 .bp-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
-.bp-seg[hidden], .bp-planname[hidden] { display: none; }
+.bp-seg[hidden], .bp-planname[hidden], .bp-btn[hidden] { display: none; }
 .bp-seg button { border: 0; background: transparent; padding: 5px 12px; font-size: 13px; font-weight: 500; border-right: 1px solid var(--line); }
 .bp-seg button:last-child { border-right: 0; }
 .bp-seg button.on { background: var(--accent); color: #fff; font-weight: 600; }

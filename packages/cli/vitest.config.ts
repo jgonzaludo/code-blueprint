@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
 
-// each test file spins up its own typescript programs, so under parallel load a single test can
-// take a few seconds. the default 5s is too tight and just makes ci flaky.
-export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 30_000 } });
+// these tests start servers, real browsers and typescript programs. running the files side by side
+// starves them of cpu and makes the browser tests time out, so run one file at a time.
+export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 30_000, fileParallelism: false } });

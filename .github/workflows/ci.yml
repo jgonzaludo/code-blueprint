@@ -21,8 +21,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      # build first: the browser and snapshot tests need the built ui
       - run: pnpm -r build
+      - run: pnpm test
       - name: smoke test the built cli
         run: |
           node packages/cli/dist/cli.js print src/orders.ts --root examples/orders-demo

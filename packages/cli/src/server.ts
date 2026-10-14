@@ -2,12 +2,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { allCards, type Positions } from '@blueprint/core/layout';
-import { appliedGraph, checkPlan, isTestPath, parseTree, planGraph, type CheckResult, type Graph } from '@blueprint/core';
+import type { Graph } from '@blueprint/core';
 import { headSha } from './git.js';
 import { GraphBuilder } from './graph.js';
-import { ensureStateDir, placeFiles, placePlan, readLayoutCache, writeLayoutCache } from './layout.js';
-import { baseOverlay, listPlans, readPlan } from './plans.js';
+import { ensureStateDir } from './layout.js';
+import { computeState, type MapState } from './state.js';
 import { openInEditor } from './open.js';
 
 export interface ServerOptions {
@@ -32,24 +31,7 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-interface PlanState {
-  id: string;
-  title: string;
-  state: 'proposed' | 'applied';
-  // the proposal against the pre-plan code, and what the code looks like now with the check on it
-  planGraph: Graph;
-  appliedGraph: Graph;
-  positions: Positions;
-  check: CheckResult;
-}
-
-interface State {
-  rev: number;
-  graph: Graph;
-  positions: Positions;
-  plans: Array<{ id: string; title: string; created: string; files: number; claims: number }>;
-  plan: PlanState | null;
-}
+type State = MapState;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -81,50 +63,16 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   const sigOf = (g: Graph) => JSON.stringify({ ...g, meta: undefined });
 
-  // the newest plan on disk, parsed three ways: pre-plan code, the draft, and the code now
-  function loadPlan(disk: Parameters<typeof checkPlan>[0], cache: Positions): { plan: PlanState; positions: Positions } | null {
-    const all = listPlans(root);
-    const latest = all[all.length - 1];
-    if (!latest) return null;
-    const { plan, baseline, overlay } = readPlan(root, latest.id);
-    const planned = new Set([...plan.files, ...plan.delete]);
-    const exclude = opts.includeTests ? undefined : (rel: string) => isTestPath(rel) && !planned.has(rel);
-    const draft = parseTree(root, { overlay, exclude, diagnostics: false });
-    const bo = baseOverlay(root, plan);
-    const base = bo.size ? parseTree(root, { overlay: bo, exclude, diagnostics: false }) : disk;
-    const check = checkPlan(disk, draft, plan, baseline);
-    const pg = planGraph(base, draft, plan);
-    const ag = appliedGraph(base, disk, plan, check);
-    // one set of positions for both views, so switching modes never shuffles the map
-    const union: Graph = { ...pg, fstat: { ...ag.fstat, ...pg.fstat }, fedges: [...pg.fedges, ...ag.fedges] };
-    const cards = { ...allCards(ag), ...allCards(pg) };
-    const positions = placePlan(union, cards, cache);
-    const applied = plan.files.length > 0 && plan.files.every((f) => overlay.get(f) !== undefined && disk.texts.get(f) === overlay.get(f)) && plan.delete.every((f) => !disk.texts.has(f));
-    return {
-      plan: { id: plan.id, title: plan.title, state: applied ? 'applied' : 'proposed', planGraph: pg, appliedGraph: ag, positions, check },
-      positions,
-    };
-  }
-
   async function rebuild(): Promise<void> {
     const t0 = performance.now();
-    const { graph, tree } = builder.build();
-    const cards = allCards(graph);
-    let cache = readLayoutCache(root);
-    const positions = await placeFiles(graph, cards, cache, wantRelayout);
+    const next = await computeState(builder, { root, includeTests: opts.includeTests, relayout: wantRelayout });
     wantRelayout = false;
-    cache = { ...(cache ?? {}), ...positions };
-    // plan files get a band above the map, and the cache remembers it so applying doesn't move them
-    const loaded = loadPlan(tree, cache);
-    if (loaded) cache = { ...cache, ...loaded.positions };
-    writeLayoutCache(root, cache);
-    const plans = listPlans(root).map((p) => ({ id: p.id, title: p.title, created: p.created, files: p.files.length, claims: p.claims.length }));
-    const sig = JSON.stringify({ g: sigOf(graph), plans, plan: loaded?.plan ?? null });
+    const sig = JSON.stringify({ g: sigOf(next.graph), plans: next.plans, plan: next.plan });
     if (sig === lastSig && state) return;
-    const changedBlocks = Object.values(graph.blocks).filter((b) => b.status !== 'same').length;
+    const changedBlocks = Object.values(next.graph.blocks).filter((b) => b.status !== 'same').length;
     lastSig = sig;
-    state = { rev: (state?.rev ?? 0) + 1, graph, positions, plans, plan: loaded?.plan ?? null };
-    log(`blueprint  parsed ${graph.meta?.files ?? 0} files in ${Math.round(performance.now() - t0)} ms  ${changedBlocks} blocks changed`);
+    state = { rev: (state?.rev ?? 0) + 1, ...next };
+    log(`blueprint  parsed ${next.graph.meta?.files ?? 0} files in ${Math.round(performance.now() - t0)} ms  ${changedBlocks} blocks changed`);
     for (const c of clients) c.write(`event: rev\ndata: ${JSON.stringify({ rev: state.rev })}\n\n`);
   }
 

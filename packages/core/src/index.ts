@@ -12,6 +12,8 @@ export {
   checkPlan,
   edgeKey,
   planGraph,
+  planNeighbourhood,
+  restrictGraph,
   type CheckEdge,
   type CheckKind,
   type CheckResult,
