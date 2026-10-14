@@ -11,9 +11,10 @@
   --add: #3f8a5a; --add-bg: rgba(63, 138, 90, .13); --del: #c8483c; --del-bg: rgba(200, 72, 60, .12); --mod: #b07d1f; --mod-bg: rgba(201, 150, 44, .17);
   --syn-kw: #9a4a8f; --syn-str: #b4592f; --syn-cm: #8a8880; --syn-num: #3d78a8;
   --shadow: 0 1px 2px rgba(20, 20, 19, .08), 0 6px 18px rgba(20, 20, 19, .06);
-  /* Claude's own faces first, used wherever the page can see them, then the closest open ones */
-  --font-ui: 'Anthropic Sans', 'Styrene B', 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'Anthropic Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* the same stacks claude.ai declares: its own faces first, then system fonts. the open faces in the
+     middle are bundled stand-ins for when the page can't see Anthropic's (they're not shipped). */
+  --font-ui: 'Anthropic Sans', 'Instrument Sans', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Anthropic Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
