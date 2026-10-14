@@ -35,7 +35,7 @@ usage:
   blueprint check [id] [--json]
   blueprint snapshot [--plan <id>] [--out map.html] [--all]
   blueprint skill install [--project] [--dir <skills dir>]
-  blueprint skill print
+  blueprint skill print [--app]
 
 commands:
   watch    serve the map on 127.0.0.1 and update it as files change
@@ -55,6 +55,7 @@ options:
   --baseline <b>      HEAD (default, diff against the last commit) or disk (files as they were at start)
   --relayout          throw away the cached file positions and lay out again
   --depth <n>         file hops to expand in print (default 1)
+  --app               with skill print: the Claude app variant (snapshot and artifact, no watcher)
   --out <file>        where snapshot writes (default blueprint-map.html)
   --plan <id>         snapshot this plan (default: the newest)
   --all               snapshot the whole project, not just a plan and one hop
@@ -86,6 +87,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
         plan: { type: 'string' },
         all: { type: 'boolean', default: false },
         dir: { type: 'string' },
+        app: { type: 'boolean', default: false },
         project: { type: 'boolean', default: false },
         title: { type: 'string' },
         from: { type: 'string' },
@@ -117,7 +119,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
       io,
     );
   }
-  if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true }, io);
+  if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true, app: values.app === true }, io);
   if (cmd === 'plan' || cmd === 'check') {
     const o = { title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
     return cmd === 'check' ? checkCommand(root0, positionals[1], o, io) : planCommand(root0, positionals.slice(1), o, io);

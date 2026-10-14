@@ -6,25 +6,29 @@ import type { IO } from './run.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// the skill file ships at dist/skill/SKILL.md. from source (tests) it's in the repo's skill dir.
-export function skillSource(): string {
-  for (const p of [path.join(here, 'skill', 'SKILL.md'), path.resolve(here, '../../../skill/claude-code/SKILL.md')]) {
-    if (fs.existsSync(p)) return p;
-  }
-  throw new Error('SKILL.md not found next to the cli. rebuild with pnpm build');
+// the skill files ship at dist/skill/. from source (tests) they're in the repo's skill dir.
+export function skillSource(app = false): string {
+  const bundled = path.join(here, 'skill', app ? 'claude-app.md' : 'SKILL.md');
+  const repo = path.resolve(here, '../../../skill', app ? 'claude-app/SKILL.md' : 'claude-code/SKILL.md');
+  for (const p of [bundled, repo]) if (fs.existsSync(p)) return p;
+  throw new Error('skill file not found next to the cli. rebuild with pnpm build');
 }
 
 export async function skillCommand(
   args: string[],
-  o: { root: string; dir?: string; project: boolean },
+  o: { root: string; dir?: string; project: boolean; app?: boolean },
   io: IO,
 ): Promise<number> {
   const [sub] = args;
   if (sub === 'print') {
-    io.out(fs.readFileSync(skillSource(), 'utf8'));
+    io.out(fs.readFileSync(skillSource(o.app), 'utf8'));
     return 0;
   }
   if (sub === 'install') {
+    if (o.app) {
+      io.err('blueprint: the Claude app skill is uploaded in the app, not installed from here. print it with: blueprint skill print --app\n');
+      return 2;
+    }
     // user level by default: ~/.claude/skills. --project puts it in this repo so a team shares it.
     const skills = o.dir ? path.resolve(io.cwd, o.dir) : o.project ? path.join(o.root, '.claude', 'skills') : path.join(os.homedir(), '.claude', 'skills');
     const dest = path.join(skills, 'blueprint', 'SKILL.md');
@@ -35,6 +39,6 @@ export async function skillCommand(
     io.out('blueprint  start a new Claude Code session and ask about your code, or ask for a feature, and it will use Blueprint\n');
     return 0;
   }
-  io.err('usage: blueprint skill <install|print> [--project] [--dir <skills dir>]\n');
+  io.err('usage: blueprint skill <install|print> [--project] [--dir <skills dir>] [--app]\n');
   return 2;
 }

@@ -45,6 +45,10 @@ blueprint skill install --project  # for this repo only, so a team shares it
 
 Then in a new Claude Code session just ask. "What does src/orders.ts do?" runs `print` and answers from the parser's output. "Add refund support" makes Claude start the map, draft the feature as a plan, wait for your go, apply it and report the check honestly: how many planned arrows were confirmed, which weren't in the code, and what it added that nobody planned. The skill file is [skill/claude-code/SKILL.md](skill/claude-code/SKILL.md).
 
+### In the Claude app
+
+The app has no file watcher, so the skill in [skill/claude-app/SKILL.md](skill/claude-app/SKILL.md) works from snapshots: it builds the map with `blueprint snapshot`, publishes it as an artifact, and after you approve and it applies the change, republishes to the same URL with the check on it. It needs the code to be available (attached files, a repo, or a linked computer, where it will use the live watcher instead). `blueprint skill print --app` prints it.
+
 The roadmap and every design decision live in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 Work happens on the `dev` branch.
