@@ -264,4 +264,12 @@ describe('one watcher per project', () => {
     await srv.close();
     expect(await findRunning(root)).toBeNull();
   });
+
+  it('calls onIdle once nobody has looked for a while, not before', async () => {
+    let idle = 0;
+    await boot({ idleMs: 300, onIdle: () => void idle++ });
+    expect(idle).toBe(0);
+    await new Promise((r) => setTimeout(r, 900));
+    expect(idle).toBeGreaterThan(0);
+  });
 });

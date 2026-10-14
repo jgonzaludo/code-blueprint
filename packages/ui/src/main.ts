@@ -144,7 +144,13 @@ function bounds(): Box {
   if (mode === 'plan' && Number.isFinite(y0)) y0 -= 110;
   return Number.isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : { x: 0, y: 0, w: 800, h: 600 };
 }
-const fitAll = (ms: number) => animateTo(rectCam(bounds(), 30, 1), ms);
+const fitAll = (ms: number) => {
+  const b = bounds();
+  const c = rectCam(b, 30, 1);
+  // short content hangs from the top instead of floating in the middle with a gap above it
+  if (b.h * c.s + 60 < vp.clientHeight) c.y = 30 - b.y * c.s;
+  animateTo(c, ms);
+};
 function zoomBy(f: number, cx = vp.clientWidth / 2, cy = vp.clientHeight / 2): void {
   const s = Math.min(2.2, Math.max(0.12, cam.s * f));
   const k = s / cam.s;

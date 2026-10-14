@@ -3,40 +3,41 @@
 @font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-500.woff2') format('woff2'); font-weight: 500 700; font-display: swap; }
 
 :root {
-  /* light, close to Claude's own: warm paper, near-black ink, clay accent */
-  --bg: #faf9f5; --surface: #ffffff; --surface-2: #f5f4ed; --canvas: #f0eee6; --dot: #ddd8ca;
-  --ink: #141413; --ink-2: #3d3d3a; --muted: #73726c; --line: #ded9cc;
-  --accent: #c96442; --accent-soft: #f4e1d8;
-  --blue: #5b88b3; --purple: #8a6fb8; --teal: #4f9a93; --orange: #c96442;
-  --add: #3f8a5a; --add-bg: rgba(63, 138, 90, .13); --del: #c8483c; --del-bg: rgba(200, 72, 60, .12); --mod: #b07d1f; --mod-bg: rgba(201, 150, 44, .17);
-  --syn-kw: #9a4a8f; --syn-str: #b4592f; --syn-cm: #8a8880; --syn-num: #3d78a8;
-  --shadow: 0 1px 2px rgba(20, 20, 19, .08), 0 6px 18px rgba(20, 20, 19, .06);
-  /* the same stacks claude.ai declares: its own faces first, then system fonts. the open faces in the
-     middle are bundled stand-ins for when the page can't see Anthropic's (they're not shipped). */
+  /* light, sampled from the app's light theme: near-white chat, #fafaf8 sidebar, #eeecea selected row.
+     borders are estimated from the selected row, they weren't visible enough to sample cleanly. */
+  --bg: #fcfcfc; --surface: #ffffff; --surface-2: #f6f6f4; --canvas: #fcfcfc; --dot: #e6e5e1; --sel: #eeecea;
+  --ink: #161616; --ink-2: #2b2b2a; --muted: #8e8e8c; --line: #e4e2de;
+  --accent: #1b6fc2; --accent-soft: #e3eefa;
+  --blue: #1b6fc2; --purple: #8c7daf; --teal: #4f9a93; --orange: #b8761a; --code: #7f4d4e;
+  --add: #209d38; --add-bg: #edf6ec; --del: #cd3b3a; --del-bg: #fdedee; --mod: #b8761a; --mod-bg: rgba(236, 172, 84, .22);
+  /* Claude Light code theme */
+  --syn-kw: #ba6830; --syn-str: #578c5d; --syn-cm: #929290; --syn-num: #1b6fc2;
+  --shadow: 0 1px 2px rgba(20, 20, 19, .07), 0 6px 18px rgba(20, 20, 19, .06);
   --font-ui: 'Anthropic Sans', 'Instrument Sans', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'Anthropic Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    /* dark, close to Claude Code's: warm charcoal, cream ink, clay accent */
-    --bg: #1f1e1d; --surface: #262624; --surface-2: #30302e; --canvas: #1b1a19; --dot: #302f2c;
-    --ink: #faf9f5; --ink-2: #d1cfc5; --muted: #9c9a92; --line: #3d3d3a;
-    --accent: #d97757; --accent-soft: rgba(217, 119, 87, .18);
-    --blue: #7fa8d0; --purple: #a78bd0; --teal: #6dbfb5; --orange: #d97757;
-    --add: #7fb88f; --add-bg: rgba(127, 184, 143, .15); --del: #e87a6e; --del-bg: rgba(232, 122, 110, .15); --mod: #e3b65a; --mod-bg: rgba(227, 182, 90, .17);
-    --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #8d8b83; --syn-num: #8fbfe8;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+    --bg: #151515; --surface: #1f1f1f; --surface-2: #252525; --canvas: #151515; --dot: #262626; --sel: #363636;
+    --ink: #ececea; --ink-2: #dddddb; --muted: #7f7f7d; --line: #303030;
+    --accent: #7ea8d9; --accent-soft: rgba(126, 168, 217, .16);
+    --blue: #7ea8d9; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #de8c8c;
+    --add: #5fb96b; --add-bg: #243222; --del: #bc5062; --del-bg: #392221; --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
+    /* Claude Dark code theme */
+    --syn-kw: #b887d5; --syn-str: #bdbc96; --syn-cm: #727270; --syn-num: #7ea9d3;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 18px rgba(0, 0, 0, .35);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1f1e1d; --surface: #262624; --surface-2: #30302e; --canvas: #1b1a19; --dot: #302f2c;
-  --ink: #faf9f5; --ink-2: #d1cfc5; --muted: #9c9a92; --line: #3d3d3a;
-  --accent: #d97757; --accent-soft: rgba(217, 119, 87, .18);
-  --blue: #7fa8d0; --purple: #a78bd0; --teal: #6dbfb5; --orange: #d97757;
-  --add: #7fb88f; --add-bg: rgba(127, 184, 143, .15); --del: #e87a6e; --del-bg: rgba(232, 122, 110, .15); --mod: #e3b65a; --mod-bg: rgba(227, 182, 90, .17);
-  --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #8d8b83; --syn-num: #8fbfe8;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+  --bg: #151515; --surface: #1f1f1f; --surface-2: #252525; --canvas: #151515; --dot: #262626; --sel: #363636;
+  --ink: #ececea; --ink-2: #dddddb; --muted: #7f7f7d; --line: #303030;
+  --accent: #7ea8d9; --accent-soft: rgba(126, 168, 217, .16);
+  --blue: #7ea8d9; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #de8c8c;
+  --add: #5fb96b; --add-bg: #243222; --del: #bc5062; --del-bg: #392221; --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
+  /* Claude Dark code theme */
+    --syn-kw: #b887d5; --syn-str: #bdbc96; --syn-cm: #727270; --syn-num: #7ea9d3;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 18px rgba(0, 0, 0, .35);
   color-scheme: dark;
 }
 
@@ -269,9 +270,9 @@ body { font-size: 14px; letter-spacing: -.003em; -webkit-font-smoothing: antiali
 .bp-seg { border-radius: 10px; padding: 2px; gap: 2px; background: var(--surface-2); border-color: var(--line); }
 .bp-seg button { border: 0; border-radius: 8px; padding: 5px 12px; color: var(--muted); }
 .bp-seg button:hover { color: var(--ink); }
-.bp-seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, .12); }
+.bp-seg button.on { background: var(--sel); color: var(--ink); font-weight: 600; }
 .bp-btn { border-radius: 9px; background: var(--surface); }
-.bp-btn:hover { background: var(--surface-2); border-color: var(--line); }
+.bp-btn:hover { background: var(--sel); border-color: var(--line); }
 .bp-select { border-radius: 9px; background: var(--surface); color: var(--ink); }
 .bp-panel { border-radius: 14px; }
 .bp-card, .bp-insp { border-radius: 14px; background: var(--surface); }
@@ -284,3 +285,19 @@ body { font-size: 14px; letter-spacing: -.003em; -webkit-font-smoothing: antiali
 .bp-tag { font-weight: 500; border-radius: 5px; }
 .bp-fn { font-weight: 500; }
 .bp-cardhead b { font-weight: 600; }
+
+/* project zoom: no code body at all, so the header isn't squeezed and the name sits centred in its block */
+.bp-map .bp-bb { display: none; }
+.bp-map .bp-bh { flex: 1; height: auto; align-items: center; }
+.bp-map .bp-bn { font-size: 28px; }
+.bp-map .bp-bk { display: none; }
+
+/* only colours the app uses: blue for functions, its coral for classes, plain grey for types.
+   fills stay neutral, only the border carries the colour. */
+:root { --kind-type: #8e8e8c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --kind-type: #9a9a98; } }
+:root[data-theme="dark"] { --kind-type: #9a9a98; }
+.bp-k-class { --k: var(--code); }
+.bp-k-interface, .bp-k-type, .bp-k-enum, .bp-k-namespace { --k: var(--kind-type); }
+.bp-bh { background: color-mix(in srgb, var(--k) 7%, var(--surface)); }
+.bp-blk { border-color: color-mix(in srgb, var(--k) 70%, var(--line)); }

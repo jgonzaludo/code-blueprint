@@ -16,6 +16,8 @@ export interface ServerOptions {
   uiDir: string;
   relayout?: boolean;
   watch?: boolean;
+  idleMs?: number; // no window and no requests for this long calls onIdle. 0 or unset never
+  onIdle?: () => void;
   log?: (line: string) => void;
 }
 
@@ -71,6 +73,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   let again = false;
   let wantRelayout = !!opts.relayout;
   let boundPort = 0;
+  let lastHit = Date.now();
 
   const sigOf = (g: Graph) => JSON.stringify({ ...g, meta: undefined });
 
@@ -139,6 +142,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       if (!authed(t)) {
         return send(res, 401, 'open the url blueprint printed, it carries a token\n');
       }
+      lastHit = Date.now();
       // the window is read only. anything that changes state goes through the cli, from chat or a terminal.
       if (req.method !== 'GET') return json(res, 405, { error: 'read only' });
       // first visit with ?t= swaps the token for a cookie, so the api and sse need no query string
@@ -252,6 +256,16 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       closers.push(() => clearInterval(iv));
     }
     closers.push(() => timer && clearTimeout(timer));
+  }
+
+  // a watcher nobody is looking at shouldn't live forever. an open window keeps an event stream, so it counts as looking.
+  if (opts.idleMs && opts.onIdle) {
+    const idle = opts.idleMs;
+    const iv = setInterval(() => {
+      if (clients.size === 0 && Date.now() - lastHit > idle) opts.onIdle?.();
+    }, Math.min(30_000, Math.max(50, idle / 2)));
+    iv.unref();
+    closers.push(() => clearInterval(iv));
   }
 
   return {
