@@ -238,9 +238,13 @@ async function watchCommand(
     if (!values['no-open'] && !drivenByClaude() && canOpenBrowser()) await openBrowser(running.url);
     return 0;
   }
+  let stopIdle = () => {};
+  const idleMin = Number(process.env.BLUEPRINT_IDLE_MINUTES ?? 30);
   const srv = await startServer({
     root,
     port,
+    idleMs: idleMin > 0 ? idleMin * 60_000 : 0,
+    onIdle: () => stopIdle(),
     baseline,
     includeTests: values['include-tests'] === true,
     relayout: values.relayout === true,
@@ -256,6 +260,10 @@ async function watchCommand(
   // run until ctrl-c
   await new Promise<void>((resolve) => {
     const stop = () => resolve();
+    stopIdle = () => {
+      io.err('blueprint  nobody has looked in a while, stopping the watcher\n');
+      resolve();
+    };
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
   });
