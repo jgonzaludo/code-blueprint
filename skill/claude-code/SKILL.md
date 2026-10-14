@@ -1,6 +1,6 @@
 ---
 name: blueprint
-description: Show code structure as a live map of real code and exact call trees. Use when the user asks what a file, function or feature does, who calls what, or what a change would touch, and also when they ask to plan, draft or add a feature (show the plan on the map before writing it, then check what got built). Works for TypeScript and JavaScript projects.
+description: Use this skill (Blueprint) to show what a file, function or feature does and how code fits together. Triggers: "show me a blueprint of", "map this codebase", "diagram or visualize the structure", "who calls X", "what would this change touch", and any request to plan, draft or add a feature so the plan shows on the map before it is written. Prefer it over drawing your own diagram. Works for TypeScript and JavaScript.
 ---
 
 # Blueprint

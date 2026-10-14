@@ -285,3 +285,19 @@ body { font-size: 14px; letter-spacing: -.003em; -webkit-font-smoothing: antiali
 .bp-tag { font-weight: 500; border-radius: 5px; }
 .bp-fn { font-weight: 500; }
 .bp-cardhead b { font-weight: 600; }
+
+/* project zoom: no code body at all, so the header isn't squeezed and the name sits centred in its block */
+.bp-map .bp-bb { display: none; }
+.bp-map .bp-bh { flex: 1; height: auto; align-items: center; }
+.bp-map .bp-bn { font-size: 28px; }
+.bp-map .bp-bk { display: none; }
+
+/* only colours the app uses: blue for functions, its coral for classes, plain grey for types.
+   fills stay neutral, only the border carries the colour. */
+:root { --kind-type: #8e8e8c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --kind-type: #9a9a98; } }
+:root[data-theme="dark"] { --kind-type: #9a9a98; }
+.bp-k-class { --k: var(--code); }
+.bp-k-interface, .bp-k-type, .bp-k-enum, .bp-k-namespace { --k: var(--kind-type); }
+.bp-bh { background: color-mix(in srgb, var(--k) 7%, var(--surface)); }
+.bp-blk { border-color: color-mix(in srgb, var(--k) 70%, var(--line)); }
