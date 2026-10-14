@@ -671,17 +671,17 @@ Stages are named by feature, not by number. Each one is its own PR (or a few), a
 
 ---
 
-## 21. Open questions (for Joe to decide)
+## 21. Decisions on the open questions
 
-1. **Plan shape:** full drafts only (recommended), or also intent-only sketches (signatures plus claimed arrows, no bodies)?
-2. **Baseline:** git HEAD (shows everything uncommitted as changes), or "disk at watcher start", or both as a toggle?
-3. **Default scope on open:** whole repo map, or only files touched by the current plan or git diff plus one hop (more "on demand")? Leaning toward the touched files plus one hop, with "show whole project" one click away.
-4. **How much the inspector does without the model:** "Used by" across the repo through language-service references on click, with a cap (e.g. 50), is cheap. Does "Summarize usage" ship in v1 or wait for the skill?
-5. **Per-file storyline view** (the original reel idea: one file as an ordered story from its entry function): keep it as a mode of the map ("story order" layout for a single file)? It's natural with LOD, since zooming into a file can switch its blocks into story order.
-6. **License:** MIT (suggested) or Apache-2.0.
-7. **Telemetry:** none (suggested).
+Decided 2026-10-13. Each one was an open question; the answer and what the build does now are below.
 
----
+1. **Plan shape: full drafts only.** Claims (`plan claim`) cover "I intend this call". Intent-only sketches are a second parsing path and wait until someone asks for very early sketching.
+2. **Baseline: both, as a toggle.** Git HEAD by default, `--baseline disk` for "files as they were at start". Falls back to disk with no git repo. Built.
+3. **Default scope on open: whole repo for small projects, focused view above a size threshold.** One click to switch (focus on changes plus one hop, or the whole project). Snapshots are already plan files plus one hop by default. The live map's toggle is not built yet.
+4. **Inspector: parser facts only in v1.** "Used by" and "Uses" come from the parser's edges. No "Summarize usage" button, since Claude does that in chat from `print --json`. Capped repo-wide references through the language service come later only if "Used by" misses too much.
+5. **Per-file story view: deferred.** It would be a layout mode on top of the current map, not needed for v1.
+6. **License: MIT.**
+7. **Telemetry: none.** The server binds to 127.0.0.1 and sends nothing anywhere.
 
 ## 22. Prototype bundle (`blueprint-prototype.zip`)
 
