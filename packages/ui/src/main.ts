@@ -71,6 +71,10 @@ const vp = $('bp-vp');
 
 let state: State | null = null;
 let mode: Mode = 'current';
+// scope: auto picks focus on big projects that have changes, whole otherwise. you can override it.
+type Scope = 'auto' | 'focus' | 'all';
+let scope: Scope = 'auto';
+const FOCUS_ABOVE = 60;
 let planChoice: string | null = null; // picker choice, null means the newest plan
 let modeChosen = false; // once you pick a view, a new push doesn't switch it under you
 
@@ -240,6 +244,33 @@ function usedByNewCode(g: Graph): Set<string> {
   return out;
 }
 
+// changed files plus every file one arrow away. null when nothing changed, so there is nothing to focus on.
+function focusSet(g: Graph): Set<string> | null {
+  const core = new Set(Object.keys(g.fstat).filter((f) => g.fstat[f] !== 'same'));
+  if (!core.size) return null;
+  const keep = new Set(core);
+  for (const e of g.fedges) {
+    if (core.has(e.from)) keep.add(e.to);
+    if (core.has(e.to)) keep.add(e.from);
+  }
+  for (const e of g.edges) {
+    const f = g.blocks[e.from]?.file;
+    const t = g.blocks[e.to]?.file;
+    if (f && t && core.has(f)) keep.add(t);
+    if (f && t && core.has(t)) keep.add(f);
+  }
+  return keep;
+}
+
+// which files are drawn right now
+function shownFiles(g: Graph): Set<string> | null {
+  const focus = focusSet(g);
+  if (!focus) return null;
+  const big = Object.keys(g.fstat).length > FOCUS_ABOVE;
+  const useFocus = scope === 'focus' || (scope === 'auto' && big);
+  return useFocus ? focus : null;
+}
+
 function buildWorld(prevSigs: Map<string, string> | null): void {
   const g = view().graph;
   const usedByNew = usedByNewCode(g);
@@ -248,8 +279,10 @@ function buildWorld(prevSigs: Map<string, string> | null): void {
   cards = allCards(g);
   cardBox = {};
   blockPos.clear();
+  const only = shownFiles(g);
   let html = '';
   for (const f of Object.keys(cards).sort()) {
+    if (only && !only.has(f)) continue;
     const card = cards[f] as CardSize;
     const p = view().positions[f] ?? { x: 0, y: 0 };
     cardBox[f] = { x: p.x, y: p.y, w: card.w, h: card.h };
@@ -638,6 +671,16 @@ function renderMeta(): void {
   $('bp-meta').textContent = bits.join('  |  ');
   ($('bp-empty') as HTMLElement).hidden = Object.keys(g.fstat).length > 0 || !!state.plan;
   // mode switch only exists when there is a plan to look at
+  const scopeEl = $('bp-scope');
+  const focus = focusSet(v);
+  const total = Object.keys(v.fstat).length;
+  scopeEl.hidden = !focus || total < 2;
+  if (focus) {
+    const on = shownFiles(v) ? 'focus' : 'all';
+    scopeEl.querySelectorAll<HTMLElement>('[data-s]').forEach((b) => b.classList.toggle('on', b.dataset.s === on));
+    const note = shownFiles(v) ? `showing ${focus.size} of ${total} files` : '';
+    $('bp-scopenote').textContent = note;
+  }
   const modes = $('bp-modes');
   modes.hidden = !state.plan;
   modes.querySelectorAll<HTMLElement>('[data-m]').forEach((b) => b.classList.toggle('on', b.dataset.m === mode));
@@ -772,6 +815,15 @@ $('bp-theme').onclick = () => {
   const dark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
   setTheme(dark ? 'light' : 'dark');
 };
+$('bp-scope').querySelectorAll<HTMLElement>('[data-s]').forEach((b) => {
+  b.onclick = () => {
+    scope = b.dataset.s === 'focus' ? 'focus' : 'all';
+    touched = false;
+    buildWorld(null);
+    renderMeta();
+    fitAll(400);
+  };
+});
 $('bp-modes').querySelectorAll<HTMLElement>('[data-m]').forEach((b) => {
   b.onclick = () => setMode(b.dataset.m as Mode);
 });

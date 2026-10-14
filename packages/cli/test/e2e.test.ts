@@ -258,3 +258,51 @@ run('plan view in a real browser', () => {
     await ctx.close();
   });
 });
+
+run('focus on a big project', () => {
+  let big = '';
+  let srv3: RunningServer | null = null;
+
+  beforeAll(async () => {
+    if (!browser) return;
+    big = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-e2e-big-'));
+    fs.mkdirSync(path.join(big, 'src'));
+    // 70 small files in a chain, so each one has a neighbour
+    for (let i = 0; i < 70; i++) {
+      const imp = i > 0 ? `import { f${i - 1} } from './f${i - 1}';\n` : '';
+      const body = i > 0 ? `return f${i - 1}() + 1;` : 'return 0;';
+      fs.writeFileSync(path.join(big, `src/f${i}.ts`), `${imp}export function f${i}(): number {\n  ${body}\n}\n`);
+    }
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: big, stdio: 'pipe' });
+    git('init', '-q', '-b', 'main');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'base');
+    // one uncommitted change in the middle
+    fs.writeFileSync(path.join(big, 'src/f30.ts'), fs.readFileSync(path.join(big, 'src/f30.ts'), 'utf8') + '// edited\n');
+    srv3 = await startServer({ root: big, port: 0, baseline: 'HEAD', includeTests: false, uiDir, watch: false });
+  }, 90_000);
+
+  afterAll(async () => {
+    await srv3?.close();
+    if (big) fs.rmSync(big, { recursive: true, force: true });
+  });
+
+  it('opens focused on the change and one hop, and one click shows everything', async () => {
+    if (!browser || !srv3) return;
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(srv3.url);
+    await page.waitForSelector('.bp-blk');
+    // f30 changed, f29 is what it calls, f31 calls it
+    expect(await page.locator('.bp-file').count()).toBe(3);
+    expect(await page.locator('#bp-scopenote').textContent()).toBe('showing 3 of 70 files');
+    await page.locator('#bp-scope button[data-s="all"]').click();
+    expect(await page.locator('.bp-file').count()).toBe(70);
+    await page.locator('#bp-scope button[data-s="focus"]').click();
+    expect(await page.locator('.bp-file').count()).toBe(3);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 90_000);
+});
