@@ -273,6 +273,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       } catch {
         // already gone
       }
+      // an event stream a client never hung up on would otherwise keep close() waiting forever
+      server.closeAllConnections?.();
       await new Promise<void>((r) => server.close(() => r()));
     },
   };
