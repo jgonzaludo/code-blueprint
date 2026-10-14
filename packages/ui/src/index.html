@@ -35,16 +35,13 @@
           <button class="bp-btn" id="bp-zi" aria-label="Zoom in">+</button>
           <button class="bp-btn" id="bp-fit">Fit</button>
         </div>
-        <div class="bp-hint">Drag to pan. Ctrl or Cmd with the wheel to zoom. Double-click a file to zoom to it.</div>
+        <div class="bp-card" id="bp-card" hidden></div>
+        <div class="bp-insp" id="bp-insp" hidden></div>
+        <div class="bp-legend" id="bp-legend" hidden></div>
+        <div class="bp-hint" id="bp-hint">Drag to pan. Ctrl or Cmd with the wheel to zoom. Double-click a file to zoom to it.</div>
         <div class="bp-empty" id="bp-empty" hidden>No TypeScript or JavaScript files found here.</div>
       </div>
     </section>
-    <aside class="bp-panel bp-side" aria-label="Details">
-      <div class="bp-sh" id="bp-sh1">Changes</div>
-      <div class="bp-sb" id="bp-changes"></div>
-      <div class="bp-sh">Selected block</div>
-      <div class="bp-sb" id="bp-insp"><p class="bp-ph">Select a block to see what calls it and what it calls. Zoom out for the project, zoom in to read every line.</p></div>
-    </aside>
   </main>
 </div>
 <script src="/app.js"></script>

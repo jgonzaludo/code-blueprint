@@ -34,7 +34,7 @@ You do not need the window for a quick question. Use `print` for those.
 Match how Claude Code itself is being used:
 
 - **Plan mode, or the user said "plan this" / "show me first":** use a plan (next section). The user reviews it on the map and says go.
-- **Auto, accept-edits, or the user said "just do it":** do not make a plan and do not wait. Make sure the window is up (step above), then make the edits normally. The map shows each change land in real time: changed blocks pulse and the Changes list fills in against HEAD. Nothing else is needed. You can use `blueprint print <file>` afterwards to describe what the code now does.
+- **Auto, accept-edits, or the user said "just do it":** do not make a plan and do not wait. Make sure the window is up (step above), then make the edits normally. The map shows each change land in real time: changed blocks pulse and changed files get badges. Nothing else is needed. You can use `blueprint print <file>` afterwards to describe what the code now does.
 - **Anything else (a feature request with no mode signal):** for a small fix, just do it. For a change that adds files or touches several blocks, ask once: "Want me to put this on the Blueprint first?" and follow the answer.
 
 ## Planning a feature (plan mode)

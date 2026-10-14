@@ -48,7 +48,7 @@ Things worth checking:
 - Zoom from the project map down to exact lines. Are the lines exactly your code?
 - Click a block. Is "Used by" and "Uses" right?
 - On a big project (over 60 files) with uncommitted changes it opens focused on the change plus one hop. Does the switch to "Whole project" feel right?
-- Edit and save a file. Does the changed block update and pulse within a second?
+- Edit and save a file. Does the changed block update and pulse within a second, and does its file get a badge?
 - Does it feel fast enough on your repo? Note the file count and the "parsed N files in X ms" line in the terminal.
 - Use `--include-tests` if you want test files on the map (they are skipped by default).
 

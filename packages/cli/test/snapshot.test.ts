@@ -126,7 +126,7 @@ describe.skipIf(!ready)('blueprint snapshot', () => {
     expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
     expect(await page.locator('.bp-band').textContent()).toBe('New files, above the map');
     await page.locator('#bp-modes button[data-m="applied"]').click();
-    expect(await page.locator('#bp-changes').innerText()).toContain('proposed arrows confirmed');
+    expect(await page.locator('#bp-card').innerText()).toContain('planned arrows confirmed');
     await page.screenshot({ path: path.join(outDir, 'snapshot.png') });
 
     // every request is the file itself or an inline data uri, so it works with no network

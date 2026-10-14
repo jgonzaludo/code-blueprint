@@ -179,3 +179,33 @@ button:focus-visible, .bp-blk:focus-visible, .bp-vp:focus-visible { outline: 2px
 .bp-revnote[hidden] { display: none; }
 .bp-revnote input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 9px; font: inherit; font-size: 13px; }
 .bp-select { width: 100%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 13px; }
+
+/* simplified window: the map is the whole page, a few small cards float on it. chat does the talking. */
+.bp-work { display: block; position: relative; }
+.bp-vpwrap { height: 100%; }
+.bp-card, .bp-insp, .bp-legend { position: absolute; z-index: 25; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.bp-card[hidden], .bp-insp[hidden], .bp-legend[hidden], .bp-hint[hidden] { display: none; }
+.bp-card { left: 12px; bottom: 12px; width: min(300px, calc(100% - 24px)); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.bp-cardhead { display: flex; flex-direction: column; gap: 2px; }
+.bp-cardhead b { font-size: 14px; }
+.bp-cardhead span { font-size: 12.5px; color: var(--muted); }
+.bp-cardhead.bp-good span, .bp-cardhead.bp-good b { color: var(--add); }
+.bp-cardhead.bp-bad span { color: var(--mod); }
+.bp-card .bp-revbar { margin-top: 0; }
+.bp-note, .bp-err { font-size: 12.5px; color: var(--muted); }
+.bp-err { color: var(--del); }
+.bp-probs { margin: 0; padding-left: 16px; font-size: 12.5px; }
+.bp-miss { color: var(--del); font-weight: 600; } .bp-unpl { color: var(--mod); font-weight: 600; }
+.bp-insp { right: 12px; bottom: 12px; width: min(320px, calc(100% - 24px)); max-height: 55%; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.bp-insp .bp-ih { display: flex; align-items: center; gap: 8px; }
+.bp-insp .bp-x { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 14px; padding: 0 4px; }
+.bp-legend { left: 12px; top: 12px; padding: 5px 10px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bp-lg { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--blue); margin-left: 6px; }
+.bp-lg-dash { border-top: 2px dashed var(--add); } .bp-lg-hollow { border-top: 2px dotted var(--add); }
+.bp-lg-conf { border-top-color: var(--add); } .bp-lg-miss { border-top: 2px dashed var(--del); } .bp-lg-unpl { border-top-color: var(--mod); }
+.bp-hint { left: auto; right: 12px; bottom: 12px; }
+.bp-insp:not([hidden]) ~ .bp-hint { display: none; }
+@media (max-width: 640px) { .bp-card { width: calc(100% - 24px); } .bp-legend { top: 56px; } }
+
+.bp-legendrow { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 2px; padding-top: 6px; border-top: 1px solid var(--line); }
+.bp-legendrow .bp-lg:first-child { margin-left: 0; }

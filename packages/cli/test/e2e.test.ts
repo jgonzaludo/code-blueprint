@@ -77,7 +77,9 @@ run('map page in a real browser', () => {
     expect(await s.page.locator('.bp-file').count()).toBe(7);
     expect(await s.page.locator('.bp-blk').count()).toBe(24);
     expect(await s.page.locator('#bp-live').textContent()).toBe('watching');
-    expect(await s.page.locator('#bp-changes .bp-it').count()).toBe(3);
+    // the window shows the change on the map itself: two new files and one modified
+    expect(await s.page.locator('.bp-file.bp-s-new').count()).toBe(2);
+    expect(await s.page.locator('.bp-file.bp-s-mod').count()).toBe(1);
     expect(s.errors).toEqual([]);
     await s.ctx.close();
   });
@@ -120,6 +122,7 @@ run('map page in a real browser', () => {
     await s.page.locator('.bp-blk[data-id="src/refunds.ts::refundOrder"] .bp-bh').click();
     const insp = s.page.locator('#bp-insp');
     await insp.locator('.bp-nm').waitFor();
+    expect(await insp.isVisible()).toBe(true);
     expect(await insp.locator('.bp-nm').textContent()).toBe('refundOrder');
     const uses = await insp.innerText();
     expect(uses).toContain('calculateRefundTotal');
@@ -149,10 +152,11 @@ run('map page in a real browser', () => {
   it('updates in place when a file is saved', async () => {
     const s = await open();
     if (!s) return;
-    const before = await s.page.locator('#bp-meta').textContent();
-    fs.writeFileSync(path.join(root, 'src/utils/money.ts'), fs.readFileSync(path.join(root, 'src/utils/money.ts'), 'utf8') + '\nexport function twice(n: number): number {\n  return n * 2;\n}\n');
-    await s.page.waitForFunction((b) => document.getElementById('bp-meta')?.textContent !== b, before, { timeout: 8000 });
-    expect(await s.page.locator('.bp-blk[data-id="src/utils/money.ts::twice"]').count()).toBe(1);
+    const file = path.join(root, 'src/utils/money.ts');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8') + '\nexport function twice(n: number): number {\n  return n * 2;\n}\n');
+    await s.page.waitForSelector('.bp-blk[data-id="src/utils/money.ts::twice"]', { timeout: 15_000 });
+    // the new block is marked as new on the map
+    expect(await s.page.locator('.bp-blk[data-id="src/utils/money.ts::twice"]').getAttribute('class')).toContain('bp-s-new');
     await s.ctx.close();
   });
 });
@@ -201,9 +205,9 @@ run('plan view in a real browser', () => {
     setReview(root2, 'refund-support', 'ready');
     await srv2.refresh();
     await page.waitForSelector('#bp-approve', wait);
-    expect(await page.locator('#bp-changes').innerText()).toContain('Ready for your review');
+    expect(await page.locator('#bp-card').innerText()).toContain('Ready for your review');
     await page.locator('#bp-approve').click();
-    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Approved.'), null, wait);
+    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('Approved'), null, wait);
     expect(readPlan(root2, 'refund-support').plan.review?.state).toBe('approved');
 
     // and changes with a note
@@ -213,7 +217,7 @@ run('plan view in a real browser', () => {
     await page.locator('#bp-changes-btn').click();
     await page.locator('#bp-note').fill('keep orders.ts as is');
     await page.locator('#bp-send').click();
-    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Changes requested.'), null, wait);
+    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('Changes requested'), null, wait);
     expect(readPlan(root2, 'refund-support').plan.review).toMatchObject({ state: 'changes', note: 'keep orders.ts as is' });
     await page.screenshot({ path: path.join(outDir, 'plan-review.png') });
     // back to drafting so the next test sees the plain plan view
@@ -237,20 +241,20 @@ run('plan view in a real browser', () => {
     expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
     expect(await page.locator('.bp-band').textContent()).toBe('New files, above the map');
     expect(await page.locator('.bp-file.bp-s-new').count()).toBe(2);
-    expect(await page.locator('#bp-changes').innerText()).toContain('refundHandler.ts');
+    expect(await page.locator('#bp-card').innerText()).toContain('refund support');
     expect(fs.existsSync(path.join(root2, 'src/refunds.ts'))).toBe(false);
     await page.screenshot({ path: path.join(outDir, 'plan-view.png') });
 
     // before applying, the check has nothing to confirm
     await page.locator('#bp-modes button[data-m="applied"]').click();
-    expect(await page.locator('#bp-changes').innerText()).toContain('0 of 10 proposed arrows confirmed');
+    expect(await page.locator('#bp-card').innerText()).toContain('0 of 10 planned arrows confirmed');
 
     // apply the plan on disk while the page is open
     const { applyPlan } = await import('../src/plans.js');
     applyPlan(root2, 'refund-support');
-    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('9 of 10 proposed arrows confirmed'), null, { timeout: 10_000 });
-    const text = await page.locator('#bp-changes').innerText();
-    expect(text).toContain('Not in the code');
+    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('9 of 10 planned arrows confirmed'), null, { timeout: 10_000 });
+    const text = await page.locator('#bp-card').innerText();
+    expect(text).toContain('not in the code');
     expect(text).toContain('refundHandler to recordAudit');
     await page.screenshot({ path: path.join(outDir, 'applied-check.png') });
 
