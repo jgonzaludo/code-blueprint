@@ -16,8 +16,9 @@ If neither works, Blueprint is not installed. Say so in one line and point the u
 ## Make sure the window is up (when the user would benefit from seeing it)
 
 1. `blueprint status --json`. If `running` is true, reuse it and tell the user the URL once.
-2. If not running, start it in the background: `blueprint watch --no-open`. Read the URL it prints (it carries a token) and give it to the user in one line. If the user is at a machine with a display and wants it opened, run `blueprint watch` without `--no-open`.
-3. Do not restart it between turns. It follows file saves by itself.
+2. If not running, start it in the background: `blueprint watch --no-open`. Read the URL it prints (it carries a token).
+3. Show it where the user is already looking. If this session has a built-in browser pane (the Claude desktop app's Code tab provides browser tools, for example one that opens a URL), open the URL there so the map sits next to the chat and updates live as files change. Otherwise give the URL to the user in one line. Never open the user's own browser unasked.
+4. Do not restart it between turns. It follows file saves by itself.
 
 You do not need the window for a quick question. Use `print` for those.
 
