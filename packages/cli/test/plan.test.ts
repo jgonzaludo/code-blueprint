@@ -77,6 +77,7 @@ describe('plan then check, end to end', () => {
   it('apply then check reproduces 9 of 10 with the claim not in the code', async () => {
     const d = project();
     await draftRefundPlan(d);
+    // no review step needed: plans apply exactly as they did before review existed
     const ap = await bp(d, ['plan', 'apply', 'refund-support']);
     expect(ap.code).toBe(0);
     expect(fs.existsSync(path.join(d, 'src/refunds.ts'))).toBe(true);
@@ -91,6 +92,59 @@ describe('plan then check, end to end', () => {
 
     const show = await bp(d, ['plan', 'show']);
     expect(show.out).toContain('applied, the files match the draft');
+  });
+
+  it('sends an approved plan back to drafting when it changes', async () => {
+    const d = project();
+    await draftRefundPlan(d);
+    await bp(d, ['plan', 'ready', 'refund-support']);
+    await bp(d, ['plan', 'approve', 'refund-support']);
+    const st = async () => JSON.parse((await bp(d, ['plan', 'status', 'refund-support', '--json'])).out);
+    expect((await st()).state).toBe('approved');
+    await bp(d, ['plan', 'add', 'refund-support', 'src/extra.ts'], 'export const x = 1;\n');
+    expect((await st()).state).toBe('drafting');
+  });
+
+  it('records a request for changes with its note', async () => {
+    const d = project();
+    await draftRefundPlan(d);
+    await bp(d, ['plan', 'ready', 'refund-support']);
+    await bp(d, ['plan', 'changes', 'refund-support', '--note', "don't touch orders.ts"]);
+    const s = JSON.parse((await bp(d, ['plan', 'status', '--json'])).out);
+    expect(s).toMatchObject({ state: 'changes', note: "don't touch orders.ts" });
+  });
+
+  it('once marked ready, apply waits for approval, or --yes when the user said go in chat', async () => {
+    const d = project();
+    await draftRefundPlan(d);
+    expect((await bp(d, ['plan', 'approve', 'refund-support'])).code).toBe(1); // still drafting
+    expect((await bp(d, ['plan', 'ready', 'refund-support'])).code).toBe(0);
+    const refused = await bp(d, ['plan', 'apply', 'refund-support']);
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain('waiting for review');
+    expect(fs.existsSync(path.join(d, 'src/refunds.ts'))).toBe(false);
+    expect((await bp(d, ['plan', 'apply', 'refund-support', '--yes'])).code).toBe(0);
+    expect(fs.existsSync(path.join(d, 'src/refunds.ts'))).toBe(true);
+  });
+
+  it('applies after approve', async () => {
+    const d = project();
+    await draftRefundPlan(d);
+    await bp(d, ['plan', 'ready', 'refund-support']);
+    await bp(d, ['plan', 'approve', 'refund-support']);
+    expect((await bp(d, ['plan', 'apply', 'refund-support'])).code).toBe(0);
+  });
+
+  it('archives and drops plans', async () => {
+    const d = project();
+    await bp(d, ['plan', 'new', 'one']);
+    await bp(d, ['plan', 'new', 'two']);
+    expect((await bp(d, ['plan', 'archive', 'one'])).code).toBe(0);
+    expect(fs.existsSync(path.join(d, '.blueprint/archive/one/plan.json'))).toBe(true);
+    expect((await bp(d, ['plan', 'drop', 'two'])).code).toBe(0);
+    expect((await bp(d, ['plan', 'list'])).out).toContain('no plans yet');
+    // ids can't reach outside the plans folder
+    expect((await bp(d, ['plan', 'drop', '../archive'])).code).toBe(1);
   });
 
   it('reads a draft from stdin', async () => {

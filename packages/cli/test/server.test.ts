@@ -220,3 +220,57 @@ describe('plans over the api', () => {
     expect(s.plan.positions['src/a.ts']).toEqual(s.positions['src/a.ts']);
   });
 });
+
+describe('plan review over the api', () => {
+  async function withPlan() {
+    const { srv, root, base } = await boot();
+    const { baselineOf, parseTree } = await import('@blueprint/core');
+    const { addDraft, createPlan, setReview } = await import('../src/plans.js');
+    createPlan(root, 'extra', 'extra fn', baselineOf(parseTree(root, { diagnostics: false })));
+    addDraft(root, 'extra', 'src/extra.ts', "import { b } from './b';\nexport function extra() {\n  return b();\n}\n");
+    await srv.refresh();
+    const post = (p: string, b: unknown, extra: Record<string, string> = {}) =>
+      fetch(`${base}${p}`, { method: 'POST', headers: { 'x-blueprint-token': srv.token, 'content-type': 'application/json', ...extra }, body: JSON.stringify(b) });
+    const get = async () => (await (await fetch(`${base}/api/state?t=${srv.token}`)).json()) as { plan: { review: { state: string; note?: string } } | null; plans: Array<{ review: string }> };
+    return { srv, root, base, post, get, setReview };
+  }
+
+  it('shows drafting until marked ready, and approving needs ready first', async () => {
+    const { post, get, root, setReview } = await withPlan();
+    expect((await get()).plan?.review.state).toBe('drafting');
+    expect((await post('/api/plan/review', { id: 'extra', state: 'approved' })).status).toBe(400);
+    setReview(root, 'extra', 'ready');
+    const r = await post('/api/plan/review', { id: 'extra', state: 'approved' });
+    expect(r.status).toBe(200);
+    expect((await get()).plan?.review.state).toBe('approved');
+  });
+
+  it('records a request for changes with its note', async () => {
+    const { post, get, root, setReview } = await withPlan();
+    setReview(root, 'extra', 'ready');
+    await post('/api/plan/review', { id: 'extra', state: 'changes', note: 'leave b alone' });
+    const s = await get();
+    expect(s.plan?.review).toMatchObject({ state: 'changes', note: 'leave b alone' });
+  });
+
+  it('rejects bad ids, bad states and cross-origin posts', async () => {
+    const { post, srv } = await withPlan();
+    expect((await post('/api/plan/review', { id: '../x', state: 'approved' })).status).toBe(400);
+    expect((await post('/api/plan/review', { id: 'extra', state: 'applied' })).status).toBe(400);
+    const r = await fetch(`http://127.0.0.1:${srv.port}/api/plan/review`, {
+      method: 'POST',
+      headers: { 'x-blueprint-token': srv.token, origin: 'https://evil.example.com', 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'extra', state: 'approved' }),
+    });
+    expect(r.status).toBe(403);
+  });
+
+  it('archives a plan so it stops being listed', async () => {
+    const { post, get, root } = await withPlan();
+    expect((await post('/api/plan/archive', { id: 'extra' })).status).toBe(200);
+    const s = await get();
+    expect(s.plan).toBeNull();
+    expect(s.plans).toEqual([]);
+    expect(fs.existsSync(path.join(root, '.blueprint/archive/extra/plan.json'))).toBe(true);
+  });
+});

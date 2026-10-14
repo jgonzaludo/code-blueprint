@@ -29,8 +29,14 @@ usage:
   blueprint plan add <id> <file> [--from <path>]     (or pipe the draft on stdin)
   blueprint plan rm <id> <file>
   blueprint plan claim <id> <fromBlock> <toBlock> [--note "..."]
+  blueprint plan ready <id>                          (drafting is done, ready for the user to review)
+  blueprint plan approve <id>                        (the user's go, same as the Approve button)
+  blueprint plan changes <id> [--note "..."]         (the user wants changes)
+  blueprint plan status [id] [--json]
   blueprint plan show [id] [--json]
-  blueprint plan apply <id>
+  blueprint plan apply <id> [--yes]                  (refuses until approved, --yes when the user said go in chat)
+  blueprint plan archive <id>
+  blueprint plan drop <id>
   blueprint plan list
   blueprint check [id] [--json]
   blueprint snapshot [--plan <id>] [--out map.html] [--all]
@@ -63,7 +69,8 @@ options:
   --dir <path>        install the skill under this skills directory
   --title <t>         plan title (plan new)
   --from <path>       read a draft from this file instead of stdin (plan add)
-  --note <text>       why a claimed arrow is expected (plan claim)
+  --note <text>       why a claimed arrow is expected (plan claim), or what to change (plan changes)
+  --yes               plan apply: the user already said go in chat
   --json              same data as json
   --include-tests     parse test files too (skipped by default)
   -h, --help          show this
@@ -96,6 +103,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
         'no-open': { type: 'boolean', default: false },
         baseline: { type: 'string' },
         relayout: { type: 'boolean', default: false },
+        yes: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
     });
@@ -121,7 +129,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
   }
   if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true, app: values.app === true }, io);
   if (cmd === 'plan' || cmd === 'check') {
-    const o = { title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
+    const o = { yes: values.yes === true, title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
     return cmd === 'check' ? checkCommand(root0, positionals[1], o, io) : planCommand(root0, positionals.slice(1), o, io);
   }
   if (PLANNED.has(cmd)) {

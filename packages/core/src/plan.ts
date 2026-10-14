@@ -10,6 +10,15 @@ export interface PlanClaim {
   note?: string;
 }
 
+// where a plan is in review. applied and checked are not stored, they're read off the disk.
+export type ReviewState = 'drafting' | 'ready' | 'approved' | 'changes';
+
+export interface PlanReview {
+  state: ReviewState;
+  note?: string;
+  at: string;
+}
+
 export interface PlanFile {
   id: string;
   title: string;
@@ -20,6 +29,8 @@ export interface PlanFile {
   // planned files that did not exist when they were added. the originals of the others are
   // captured under base/ so the plan can always be shown against the pre-plan code.
   baseAbsent?: string[];
+  // absent means drafting. any edit to the plan after it was marked ready sends it back to drafting.
+  review?: PlanReview;
 }
 
 // what the code looked like when the plan was started. lets check tell "the plan's new arrows"

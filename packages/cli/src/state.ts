@@ -1,8 +1,8 @@
-import { appliedGraph, checkPlan, isTestPath, parseTree, planGraph, type CheckResult, type Graph, type ParsedTree } from '@blueprint/core';
+import { appliedGraph, checkPlan, isTestPath, parseTree, planGraph, type CheckResult, type Graph, type ParsedTree, type ReviewState } from '@blueprint/core';
 import { allCards, type Positions } from '@blueprint/core/layout';
 import type { GraphBuilder } from './graph.js';
 import { placeFiles, placePlan, readLayoutCache, writeLayoutCache } from './layout.js';
-import { baseOverlay, listPlans, readPlan } from './plans.js';
+import { baseOverlay, listPlans, readPlan, reviewOf } from './plans.js';
 
 // everything the map page needs, computed in one place so the live server and `snapshot` agree.
 
@@ -10,6 +10,10 @@ export interface PlanState {
   id: string;
   title: string;
   state: 'proposed' | 'applied';
+  // where it is in review, and what the user said if they asked for changes
+  review: { state: ReviewState; note?: string; at?: string };
+  files: number;
+  claims: number;
   // the proposal against the pre-plan code, and what the code looks like now with the check on it
   planGraph: Graph;
   appliedGraph: Graph;
@@ -23,6 +27,7 @@ export interface PlanSummary {
   created: string;
   files: number;
   claims: number;
+  review: ReviewState;
 }
 
 export interface MapState {
@@ -66,7 +71,18 @@ function loadPlan(root: string, o: ComputeOptions, disk: ParsedTree, cache: Posi
     plan.files.every((f) => overlay.get(f) !== undefined && disk.texts.get(f) === overlay.get(f)) &&
     plan.delete.every((f) => !disk.texts.has(f));
   return {
-    plan: { id: plan.id, title: plan.title, state: applied ? 'applied' : 'proposed', planGraph: pg, appliedGraph: ag, positions, check },
+    plan: {
+      id: plan.id,
+      title: plan.title,
+      state: applied ? 'applied' : 'proposed',
+      review: { state: reviewOf(plan), note: plan.review?.note, at: plan.review?.at },
+      files: plan.files.length,
+      claims: plan.claims.length,
+      planGraph: pg,
+      appliedGraph: ag,
+      positions,
+      check,
+    },
     positions,
   };
 }
@@ -80,6 +96,6 @@ export async function computeState(builder: GraphBuilder, o: ComputeOptions): Pr
   const loaded = loadPlan(o.root, o, tree, cache);
   if (loaded) cache = { ...cache, ...loaded.positions };
   if (o.writeCache !== false) writeLayoutCache(o.root, cache);
-  const plans = listPlans(o.root).map((p) => ({ id: p.id, title: p.title, created: p.created, files: p.files.length, claims: p.claims.length }));
+  const plans = listPlans(o.root).map((p) => ({ id: p.id, title: p.title, created: p.created, files: p.files.length, claims: p.claims.length, review: reviewOf(p) }));
   return { graph, positions, plans, plan: loaded?.plan ?? null };
 }

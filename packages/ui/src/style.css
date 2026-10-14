@@ -171,3 +171,11 @@ button:focus-visible, .bp-blk:focus-visible, .bp-vp:focus-visible { outline: 2px
 .bp-rec code { font-family: var(--font-mono); font-size: 11.5px; }
 .bp-rec.bp-bad { border-color: color-mix(in srgb, var(--del) 55%, var(--line)); }
 .bp-rec.bp-good { border-color: color-mix(in srgb, var(--add) 55%, var(--line)); }
+
+/* review inside the plan view */
+.bp-revbar { display: flex; gap: 8px; margin-top: 10px; }
+.bp-btn.bp-ok { background: var(--add-bg); border-color: color-mix(in srgb, var(--add) 55%, var(--line)); color: var(--add); font-weight: 600; }
+.bp-revnote { display: flex; gap: 6px; margin-top: 8px; }
+.bp-revnote[hidden] { display: none; }
+.bp-revnote input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 9px; font: inherit; font-size: 13px; }
+.bp-select { width: 100%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 13px; }

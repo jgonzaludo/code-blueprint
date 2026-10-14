@@ -12,10 +12,12 @@ interface CheckEdge {
   check: 'confirmed' | 'missing' | 'unplanned';
   note?: string;
 }
+type ReviewState = 'drafting' | 'ready' | 'approved' | 'changes';
 interface PlanState {
   id: string;
   title: string;
   state: 'proposed' | 'applied';
+  review: { state: ReviewState; note?: string };
   planGraph: Graph;
   appliedGraph: Graph;
   positions: Positions;
@@ -29,7 +31,7 @@ interface State {
   rev: number;
   graph: Graph;
   positions: Positions;
-  plans: Array<{ id: string; title: string }>;
+  plans: Array<{ id: string; title: string; review: ReviewState }>;
   plan: PlanState | null;
 }
 type Mode = 'current' | 'plan' | 'applied';
@@ -69,6 +71,7 @@ const vp = $('bp-vp');
 
 let state: State | null = null;
 let mode: Mode = 'current';
+let planChoice: string | null = null; // picker choice, null means the newest plan
 let modeChosen = false; // once you pick a view, a new push doesn't switch it under you
 
 // the graph and positions for the active view
@@ -518,6 +521,52 @@ function item(mark: [string, string], label: string, small: string, go: string):
   return `<button class="bp-it" data-go="${esc(go)}"><span class="bp-m ${mark[1]}">${mark[0]}</span><span>${esc(label)}</span><small>${esc(small)}</small></button>`;
 }
 
+async function post(path: string, body: unknown): Promise<void> {
+  try {
+    await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  } finally {
+    await load().catch(() => {});
+  }
+}
+
+// the review step lives inside the plan view. it only shows up once Claude has marked the plan ready,
+// so a plan nobody asked to review looks and works exactly as it did before.
+function reviewBlock(plan: PlanState): string {
+  const r = plan.review;
+  if (r.state === 'drafting') return '';
+  if (r.state === 'ready') {
+    return `<div class="bp-rec"><b>Ready for your review.</b> Claude marked this plan finished and is waiting for your go.` +
+      (isSnapshot ? '' : `<div class="bp-revbar"><button class="bp-btn bp-ok" id="bp-approve">Approve</button><button class="bp-btn" id="bp-changes-btn">Ask for changes</button></div>` +
+        `<div class="bp-revnote" id="bp-revnote" hidden><input id="bp-note" placeholder="what should change?" maxlength="300"><button class="bp-btn" id="bp-send">Send</button></div>`) + `</div>`;
+  }
+  if (r.state === 'approved') return `<div class="bp-rec bp-good"><b>Approved.</b> Claude can apply it now.</div>`;
+  return `<div class="bp-rec bp-bad"><b>Changes requested.</b>${r.note ? ` ${esc(r.note)}` : ''} Claude will revise the draft.</div>`;
+}
+
+function planPicker(): string {
+  if (!state || state.plans.length < 2 || isSnapshot) return '';
+  const cur = state.plan?.id;
+  return `<div class="bp-grp"><h4>Plan</h4><select id="bp-picker" class="bp-select">${state.plans
+    .map((p) => `<option value="${esc(p.id)}"${p.id === cur ? ' selected' : ''}>${esc(p.title)}</option>`)
+    .join('')}</select></div>`;
+}
+
+function wireReview(el: HTMLElement): void {
+  const plan = state?.plan;
+  if (!plan) return;
+  const pick = el.querySelector<HTMLSelectElement>('#bp-picker');
+  if (pick) pick.onchange = () => { planChoice = pick.value; void load().catch(() => {}); };
+  const ap = el.querySelector<HTMLElement>('#bp-approve');
+  if (ap) ap.onclick = () => void post('/api/plan/review', { id: plan.id, state: 'approved' });
+  const ch = el.querySelector<HTMLElement>('#bp-changes-btn');
+  const note = el.querySelector<HTMLElement>('#bp-revnote');
+  if (ch && note) ch.onclick = () => { note.hidden = false; (note.querySelector('input') as HTMLInputElement).focus(); };
+  const send = el.querySelector<HTMLElement>('#bp-send');
+  if (send) send.onclick = () => void post('/api/plan/review', { id: plan.id, state: 'changes', note: (el.querySelector('#bp-note') as HTMLInputElement).value });
+  const arch = el.querySelector<HTMLElement>('#bp-archive');
+  if (arch) arch.onclick = () => { planChoice = null; void post('/api/plan/archive', { id: plan.id }); };
+}
+
 function renderChanges(): void {
   const el = $('bp-changes');
   if (!state) return;
@@ -528,6 +577,7 @@ function renderChanges(): void {
 
   if (mode === 'plan' && plan) {
     sh.textContent = `Plan: ${plan.title}`;
+    h += planPicker() + reviewBlock(plan);
     const newFiles = Object.keys(g.fstat).filter((f) => g.fstat[f] === 'new').sort();
     const changed = Object.values(g.blocks).filter((b) => b.status === 'mod' || (b.status === 'new' && g.fstat[b.file] === 'mod'));
     const touched = [...usedByNewCode(g)].sort();
@@ -540,6 +590,7 @@ function renderChanges(): void {
     h += `<div class="bp-rec"><b>Proposed, not on disk yet.</b> ${parsed} dashed arrows come from the draft code, so the parser can read them. ${claims ? `${claims} more ${claims === 1 ? 'is a claim' : 'are claims'} with a hollow head: ${claims === 1 ? 'a call' : 'calls'} the plan says will exist but no draft file contains. ${claims === 1 ? 'It stays' : 'They stay'} a claim until the parser checks the real code.` : ''}</div>`;
   } else if (mode === 'applied' && plan) {
     sh.textContent = `After applying: ${plan.title}`;
+    h += planPicker();
     const c = plan.check;
     const bad = c.edges.filter((e) => e.check !== 'confirmed');
     const label = (e: CheckEdge) => `${fileName(e.from.split('::')[0] as string)} ${shortName(e.from)} to ${shortName(e.to)}`;
@@ -551,6 +602,7 @@ function renderChanges(): void {
     if (c.blocks.missing.length) h += `<p>Planned blocks not written: ${c.blocks.missing.map((m) => `<code>${esc(m)}</code>`).join(', ')}</p>`;
     if (c.blocks.extra.length) h += `<p>New blocks nobody planned: ${c.blocks.extra.map((m) => `<code>${esc(m)}</code>`).join(', ')}</p>`;
     h += '</div>';
+    if (plan.state === 'applied' && !isSnapshot) h += `<button class="bp-btn" id="bp-archive">Archive this plan</button>`;
   } else {
     sh.textContent = `Changes vs ${g.meta?.baseline ?? 'HEAD'}`;
     const rows = Object.keys(g.fstat).sort().filter((f) => g.fstat[f] !== 'same');
@@ -566,6 +618,7 @@ function renderChanges(): void {
     }
   }
   el.innerHTML = h;
+  wireReview(el);
   el.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => {
     b.onclick = () => {
       const [k, v] = (b.dataset.go as string).split(/:(.+)/);
@@ -648,7 +701,7 @@ async function load(): Promise<void> {
   let next: State;
   if (embedded) next = JSON.parse(embedded.textContent ?? '') as State;
   else {
-    const r = await fetch('/api/state');
+    const r = await fetch(planChoice ? `/api/state?plan=${encodeURIComponent(planChoice)}` : '/api/state');
     if (!r.ok) throw new Error(`state ${r.status}`);
     next = (await r.json()) as State;
   }

@@ -20,6 +20,8 @@ export {
   type PlanBaseline,
   type PlanClaim,
   type PlanFile,
+  type PlanReview,
+  type ReviewState,
 } from './plan.js';
 
 // parse two trees on disk and diff them (before = baseline, after = new)
