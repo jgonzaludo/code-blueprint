@@ -11,9 +11,14 @@ describe('canOpenBrowser', () => {
     expect(canOpenBrowser({}, 'linux')).toBe(false);
   });
   it('does not when Claude Code is driving, so nothing opens outside the app', () => {
-    expect(drivenByClaude({ CLAUDE_CODE_ENTRYPOINT: 'cli' })).toBe(true);
-    expect(drivenByClaude({ CLAUDECODE: '1' })).toBe(true);
-    expect(drivenByClaude({})).toBe(false);
-    expect(canOpenBrowser({ CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, 'darwin')).toBe(false);
+    // claude runs commands with no tty
+    expect(drivenByClaude({ CLAUDE_CODE_ENTRYPOINT: 'cli' }, false)).toBe(true);
+    expect(drivenByClaude({ CLAUDECODE: '1' }, false)).toBe(true);
+    expect(drivenByClaude({}, false)).toBe(false);
+    expect(canOpenBrowser({ CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, 'darwin', false)).toBe(false);
+  });
+  it('still opens for a person at a terminal, even one inside the app that inherited the variables', () => {
+    expect(drivenByClaude({ CLAUDE_CODE_ENTRYPOINT: 'claude-desktop', CLAUDE_CODE_DESKTOP_APP_VERSION: '1' }, true)).toBe(false);
+    expect(canOpenBrowser({ CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, 'darwin', true)).toBe(true);
   });
 });
