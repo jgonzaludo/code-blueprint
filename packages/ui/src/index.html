@@ -16,6 +16,10 @@
       <button data-m="current">Current code</button><button data-m="plan">Claude's plan</button><button data-m="applied">After applying</button>
     </span>
     <span class="bp-planname" id="bp-planname" hidden></span>
+    <span class="bp-seg" id="bp-scope" role="group" aria-label="Scope" hidden>
+      <button data-s="focus" title="Changed files and what they touch">Changes + 1 hop</button><button data-s="all">Whole project</button>
+    </span>
+    <span class="bp-planname" id="bp-scopenote"></span>
     <span class="bp-meta" id="bp-meta"></span>
     <span class="bp-spacer"></span>
     <button class="bp-btn" id="bp-relayout" title="Throw away the cached file positions and lay out again">Re-layout</button>
