@@ -1,6 +1,6 @@
-@font-face { font-family: 'Schibsted Grotesk'; src: url('/fonts/schibsted-grotesk.woff2') format('woff2'); font-weight: 400 900; font-display: swap; }
-@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/jetbrains-mono-600.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url('/fonts/instrument-sans.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-500.woff2') format('woff2'); font-weight: 500 700; font-display: swap; }
 
 :root {
   /* light, close to Claude's own: warm paper, near-black ink, clay accent */
@@ -11,8 +11,9 @@
   --add: #3f8a5a; --add-bg: rgba(63, 138, 90, .13); --del: #c8483c; --del-bg: rgba(200, 72, 60, .12); --mod: #b07d1f; --mod-bg: rgba(201, 150, 44, .17);
   --syn-kw: #9a4a8f; --syn-str: #b4592f; --syn-cm: #8a8880; --syn-num: #3d78a8;
   --shadow: 0 1px 2px rgba(20, 20, 19, .08), 0 6px 18px rgba(20, 20, 19, .06);
-  --font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* Claude's own faces first, used wherever the page can see them, then the closest open ones */
+  --font-ui: 'Anthropic Sans', 'Styrene B', 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Anthropic Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -258,3 +259,27 @@ a.bp-btn { text-decoration: none; display: inline-block; color: inherit; }
 .bp-map .bp-bn { font-size: 24px; line-height: 1.15; }
 .bp-map .bp-blk { display: flex; flex-direction: column; }
 .bp-map .bp-blk.bp-k-imports .bp-bn { font-size: 20px; }
+
+/* styling to sit next to Claude: quiet weights, neutral selected states, soft borders */
+body { font-size: 14px; letter-spacing: -.003em; -webkit-font-smoothing: antialiased; }
+.bp-top h1 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.bp-live { font-weight: 500; }
+.bp-btn, .bp-seg button { font-weight: 500; }
+.bp-seg { border-radius: 10px; padding: 2px; gap: 2px; background: var(--surface-2); border-color: var(--line); }
+.bp-seg button { border: 0; border-radius: 8px; padding: 5px 12px; color: var(--muted); }
+.bp-seg button:hover { color: var(--ink); }
+.bp-seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, .12); }
+.bp-btn { border-radius: 9px; background: var(--surface); }
+.bp-btn:hover { background: var(--surface-2); border-color: var(--line); }
+.bp-select { border-radius: 9px; background: var(--surface); color: var(--ink); }
+.bp-panel { border-radius: 14px; }
+.bp-card, .bp-insp { border-radius: 14px; background: var(--surface); }
+.bp-lvl { font-weight: 500; }
+.bp-chip { border-radius: 9px; }
+.bp-chip b { font-weight: 500; }
+/* code names read as the inline code chips in Claude's chat: warm text on a faint chip */
+.bp-nm, .bp-bn { font-weight: 500; }
+.bp-bk { border-radius: 5px; }
+.bp-tag { font-weight: 500; border-radius: 5px; }
+.bp-fn { font-weight: 500; }
+.bp-cardhead b { font-weight: 600; }
