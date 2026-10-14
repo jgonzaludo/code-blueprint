@@ -7,6 +7,7 @@ import { defaultUiDir } from './paths.js';
 import { snapshotCommand } from './snapshot.js';
 import { checkCommand, planCommand } from './planCommands.js';
 import { skillCommand } from './skill.js';
+import { version } from './version.js';
 import { renderFileTree } from './print.js';
 import { serverFile, startServer } from './server.js';
 
@@ -42,6 +43,8 @@ usage:
   blueprint snapshot [--plan <id>] [--out map.html] [--all]
   blueprint skill install [--project] [--dir <skills dir>]
   blueprint skill print [--app]
+  blueprint skill status                 (is an installed skill older than this cli?)
+  blueprint --version
 
 commands:
   watch    serve the map on 127.0.0.1 and update it as files change
@@ -105,6 +108,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
         relayout: { type: 'boolean', default: false },
         yes: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
+        version: { type: 'boolean', short: 'v', default: false },
       },
     });
   } catch (e) {
@@ -114,6 +118,10 @@ export async function run(argv: string[], io: IO): Promise<number> {
   const { values, positionals } = parsed;
   const [cmd, target] = positionals;
 
+  if (values.version || positionals[0] === 'version') {
+    io.out(`${version()}\n`);
+    return 0;
+  }
   if (values.help) {
     io.out(HELP);
     return 0;
@@ -127,7 +135,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
       io,
     );
   }
-  if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true, app: values.app === true }, io);
+  if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true, app: values.app === true, json: values.json === true }, io);
   if (cmd === 'plan' || cmd === 'check') {
     const o = { yes: values.yes === true, title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
     return cmd === 'check' ? checkCommand(root0, positionals[1], o, io) : planCommand(root0, positionals.slice(1), o, io);

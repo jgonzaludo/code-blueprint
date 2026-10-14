@@ -81,6 +81,41 @@ describe('the Claude app skill', () => {
   });
 });
 
+describe('the plugin', () => {
+  it('carries an identical copy of the skill, valid manifests, and no version pin', () => {
+    expect(fs.readFileSync(path.join(repo, 'plugin/skills/blueprint/SKILL.md'), 'utf8')).toBe(skill);
+    const manifest = JSON.parse(fs.readFileSync(path.join(repo, 'plugin/.claude-plugin/plugin.json'), 'utf8'));
+    expect(manifest.name).toBe('blueprint');
+    // no version: every commit then reaches installed copies instead of only bumps
+    expect(manifest.version).toBeUndefined();
+    const market = JSON.parse(fs.readFileSync(path.join(repo, '.claude-plugin/marketplace.json'), 'utf8'));
+    expect(market.owner.name).toBeTruthy();
+    expect(market.plugins[0]).toMatchObject({ name: manifest.name, source: './plugin' });
+    expect(fs.existsSync(path.join(repo, 'plugin', '.claude-plugin', 'plugin.json'))).toBe(true);
+  });
+});
+
+describe('version and skill status', () => {
+  it('prints the version', async () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(repo, 'packages/cli/package.json'), 'utf8'));
+    expect((await bp(['--version'], repo)).out.trim()).toBe(pkg.version);
+    expect((await bp(['version'], repo)).out.trim()).toBe(pkg.version);
+  });
+
+  it('says outdated, then up to date, for a project copy', async () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-skill-'));
+    dirs.push(d);
+    const dest = path.join(d, '.claude/skills/blueprint/SKILL.md');
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, 'an old copy');
+    const old = JSON.parse((await bp(['skill', 'status', '--root', d, '--json'], d)).out);
+    expect(old.copies.find((c: { where: string }) => c.where === 'project').state).toBe('outdated');
+    await bp(['skill', 'install', '--project', '--root', d], d);
+    const now = JSON.parse((await bp(['skill', 'status', '--root', d, '--json'], d)).out);
+    expect(now.copies.find((c: { where: string }) => c.where === 'project').state).toBe('up to date');
+  });
+});
+
 describe('blueprint skill', () => {
   it('prints the skill', async () => {
     const r = await bp(['skill', 'print'], repo);
