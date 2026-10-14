@@ -35,8 +35,9 @@ export function writeLayoutCache(root: string, positions: Positions): void {
   fs.renameSync(tmp, f);
 }
 
-const GAP_X = 180;
-const GAP_Y = 80;
+// room for arrows to run between cards. arrows are drawn under the blocks, so they need clear lanes.
+export const GAP_X = 320;
+export const GAP_Y = 120;
 
 // full layered layout of the file graph, entry points left and leaves right
 async function elkLayout(graph: Graph, cards: Record<string, CardSize>): Promise<Positions> {

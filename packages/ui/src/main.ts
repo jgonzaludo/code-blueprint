@@ -390,15 +390,15 @@ function lineY(id: string, line: number | undefined, useOld: boolean): number {
 function route(a: BlockPos, t: BlockPos, y1: number, y2: number): { d: string; x: number; y: number } {
   if (t.x >= a.x + a.w) {
     const x1 = a.x + a.w, x2 = t.x, dx = Math.max(40, (x2 - x1) / 2.4);
-    return { d: `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2 - 4} ${y2}`, x: x1, y: y1 };
+    return { d: `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2 - 4} ${y2}`, x: x1 + 4, y: y1 };
   }
   if (t.x + t.w <= a.x) {
     const x1 = a.x, x2 = t.x + t.w, dx = Math.max(40, (x1 - x2) / 2.4);
-    return { d: `M${x1} ${y1} C${x1 - dx} ${y1} ${x2 + dx} ${y2} ${x2 + 4} ${y2}`, x: x1, y: y1 };
+    return { d: `M${x1} ${y1} C${x1 - dx} ${y1} ${x2 + dx} ${y2} ${x2 + 4} ${y2}`, x: x1 - 4, y: y1 };
   }
   // same column: bow out to the right
   const x1 = a.x + a.w, x2 = t.x + t.w, o = Math.max(x1, x2) + 50;
-  return { d: `M${x1} ${y1} C${o} ${y1} ${o} ${y2} ${x2 + 4} ${y2}`, x: x1, y: y1 };
+  return { d: `M${x1} ${y1} C${o} ${y1} ${o} ${y2} ${x2 + 4} ${y2}`, x: x1 + 4, y: y1 };
 }
 
 const DEFS = '<defs><marker id="bp-mb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-b" d="M0 0L8 4L0 8z"/></marker>' +
@@ -473,12 +473,16 @@ function drawFileEdges(): void {
     }
     const k = fe.status === 'del' ? 'bp-gone' : fe.status === 'new' ? 'bp-new' : '';
     const mk = fe.status === 'del' ? 'bp-fmg' : fe.status === 'new' ? 'bp-fmn' : 'bp-fmb';
-    s += `<path class="bp-ed ${k}" d="${d}" marker-end="url(#${mk})"/>`;
+    s += `<path class="bp-ed ${k}" data-ff="${esc(fe.from)}" data-ft="${esc(fe.to)}" d="${d}" marker-end="url(#${mk})"/>`;
   }
   svg.innerHTML = s;
 }
 
 /* selection and inspector */
+// hovering a block lights up its arrows, selecting one also dims everything else. the lit arrows
+// animate along their direction so you can see which way the call goes.
+let hover: string | null = null;
+
 function applySelection(): void {
   const g = state ? view().graph : undefined;
   const related = new Set<string>();
@@ -493,10 +497,18 @@ function applySelection(): void {
     p.el?.classList.toggle('bp-sel', id === sel);
     p.el?.classList.toggle('bp-dim', !!sel && !related.has(id));
   }
+  const focus = sel ?? hover;
+  const focusFile = focus ? blockPos.get(focus)?.file : null;
   world.querySelectorAll('#bp-bsvg .bp-ed').forEach((el) => {
-    const f = el.getAttribute('data-from');
-    const t = el.getAttribute('data-to');
-    el.classList.toggle('bp-dim', !!sel && f !== sel && t !== sel);
+    const touches = !!focus && (el.getAttribute('data-from') === focus || el.getAttribute('data-to') === focus);
+    el.classList.toggle('bp-hot', touches);
+    el.classList.toggle('bp-dim', !!focus && !touches);
+  });
+  // at map zoom the arrows are file to file
+  world.querySelectorAll('#bp-fsvg .bp-ed').forEach((el) => {
+    const touches = !!focusFile && (el.getAttribute('data-ff') === focusFile || el.getAttribute('data-ft') === focusFile);
+    el.classList.toggle('bp-hot', touches);
+    el.classList.toggle('bp-dim', !!focusFile && !touches);
   });
 }
 
@@ -660,6 +672,23 @@ world.addEventListener('keydown', (e) => {
   if (b && (e.key === 'Enter' || e.key === ' ')) {
     e.preventDefault();
     goBlock(b.dataset.id as string);
+  }
+});
+world.addEventListener('mouseover', (e) => {
+  const t = e.target as HTMLElement;
+  const b = t.closest<HTMLElement>('.bp-blk');
+  const f = t.closest<HTMLElement>('.bp-file');
+  // a file card stands in for its first block at map zoom, so file arrows light up too
+  const id = b?.dataset.id ?? (f ? ([...blockPos].find(([, p]) => p.file === f.dataset.f)?.[0] ?? null) : null);
+  if (id !== hover) {
+    hover = id;
+    applySelection();
+  }
+});
+world.addEventListener('mouseleave', () => {
+  if (hover !== null) {
+    hover = null;
+    applySelection();
   }
 });
 world.addEventListener('dblclick', (e) => {

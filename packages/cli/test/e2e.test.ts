@@ -116,6 +116,29 @@ run('map page in a real browser', () => {
     await s.ctx.close();
   });
 
+  it('lights up only the arrows of the block you point at', async () => {
+    const s = await open();
+    if (!s) return;
+    const { page } = s;
+    // arrows are under the blocks, never over code
+    const z = await page.evaluate(() => getComputedStyle(document.getElementById('bp-bsvg') as Element).zIndex);
+    expect(z).toBe('0');
+    await page.locator('.bp-file[data-f="src/orders.ts"]').dblclick();
+    await page.waitForFunction(() => document.getElementById('bp-lvl')?.textContent !== 'Project map');
+    await page.waitForSelector('.bp-ed');
+    expect(await page.locator('#bp-bsvg .bp-ed.bp-hot').count()).toBe(0);
+    await page.locator('.bp-blk[data-id="src/orders.ts::processOrder"] .bp-bh').hover();
+    await page.waitForSelector('#bp-bsvg .bp-ed.bp-hot');
+    const hot = await page.locator('#bp-bsvg .bp-ed.bp-hot').count();
+    const dim = await page.locator('#bp-bsvg .bp-ed.bp-dim').count();
+    expect(hot).toBeGreaterThan(0);
+    expect(dim).toBeGreaterThan(0);
+    // every lit arrow touches the block under the pointer
+    const all = await page.locator('#bp-bsvg .bp-ed.bp-hot').evaluateAll((els) => els.map((e) => [e.getAttribute('data-from'), e.getAttribute('data-to')]));
+    for (const [f, t] of all) expect([f, t]).toContain('src/orders.ts::processOrder');
+    await s.ctx.close();
+  });
+
   it('selecting a block fills the inspector with used by and uses', async () => {
     const s = await open();
     if (!s) return;

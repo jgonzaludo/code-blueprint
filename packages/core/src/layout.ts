@@ -4,10 +4,10 @@ import type { Block, Graph } from './types.js';
 
 export const L = {
   COLW: 420, // block column width
-  GAP: 16, // gap between columns
+  GAP: 72, // gap between columns, wide enough for arrows to run between them
   PAD: 16, // card padding
   FH: 112, // file header height, badges included
-  BG: 12, // gap between stacked blocks
+  BG: 18, // gap between stacked blocks
   LH: 14, // code line height
   BHH: 26, // block header height
   MAXLINES: 60, // longer blocks collapse with a "+N more lines" row
