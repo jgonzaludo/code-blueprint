@@ -171,8 +171,8 @@ run('map page in a real browser', () => {
     if (!s) return;
     await s.page.screenshot({ path: path.join(outDir, 'dark-map.png') });
     const bg = await s.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    // Claude Code's warm charcoal
-    expect(bg).toBe('rgb(31, 30, 29)');
+    // the app's chat background, sampled from a real screenshot: #151515
+    expect(bg).toBe('rgb(21, 21, 21)');
     await s.ctx.close();
   });
 
@@ -357,7 +357,8 @@ run('planning in plan mode, then the code landing', () => {
     if (!browser || !srv4) return;
     const { baselineOf, parseTree } = await import('@blueprint/core');
     const { addClaim, addSketch, createPlan, setReview } = await import('../src/plans.js');
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    // dark, like the app it sits next to
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark' });
     const page = await ctx.newPage();
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));

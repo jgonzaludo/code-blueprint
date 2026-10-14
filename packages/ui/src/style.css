@@ -6,9 +6,9 @@
   /* light, close to Claude's own: warm paper, near-black ink, clay accent */
   --bg: #faf9f5; --surface: #ffffff; --surface-2: #f5f4ed; --canvas: #f0eee6; --dot: #ddd8ca;
   --ink: #141413; --ink-2: #3d3d3a; --muted: #73726c; --line: #ded9cc;
-  --accent: #c96442; --accent-soft: #f4e1d8;
+  --accent: #3f78bf; --accent-soft: #dbe7f6; --sel: #ebe8dd; --code: #b8505a;
   --blue: #5b88b3; --purple: #8a6fb8; --teal: #4f9a93; --orange: #c96442;
-  --add: #3f8a5a; --add-bg: rgba(63, 138, 90, .13); --del: #c8483c; --del-bg: rgba(200, 72, 60, .12); --mod: #b07d1f; --mod-bg: rgba(201, 150, 44, .17);
+  --add: #3b8f48; --add-bg: rgba(59, 143, 72, .13); --del: #b3394d; --del-bg: rgba(179, 57, 77, .12); --mod: #b8761a; --mod-bg: rgba(236, 172, 84, .22);
   --syn-kw: #9a4a8f; --syn-str: #b4592f; --syn-cm: #8a8880; --syn-num: #3d78a8;
   --shadow: 0 1px 2px rgba(20, 20, 19, .08), 0 6px 18px rgba(20, 20, 19, .06);
   /* the same stacks claude.ai declares: its own faces first, then system fonts. the open faces in the
@@ -18,25 +18,24 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    /* dark, close to Claude Code's: warm charcoal, cream ink, clay accent */
-    --bg: #1f1e1d; --surface: #262624; --surface-2: #30302e; --canvas: #1b1a19; --dot: #302f2c;
-    --ink: #faf9f5; --ink-2: #d1cfc5; --muted: #9c9a92; --line: #3d3d3a;
-    --accent: #d97757; --accent-soft: rgba(217, 119, 87, .18);
-    --blue: #7fa8d0; --purple: #a78bd0; --teal: #6dbfb5; --orange: #d97757;
-    --add: #7fb88f; --add-bg: rgba(127, 184, 143, .15); --del: #e87a6e; --del-bg: rgba(232, 122, 110, .15); --mod: #e3b65a; --mod-bg: rgba(227, 182, 90, .17);
-    --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #8d8b83; --syn-num: #8fbfe8;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+    --bg: #151515; --surface: #1f1f1f; --surface-2: #252525; --canvas: #151515; --dot: #262626; --sel: #363636;
+    --ink: #ececea; --ink-2: #dddddb; --muted: #888888; --line: #303030;
+    --accent: #6f9fd8; --accent-soft: rgba(111, 159, 216, .16);
+    --blue: #6f9fd8; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #d58384;
+    --add: #58b064; --add-bg: rgba(88, 176, 100, .15); --del: #bc5062; --del-bg: rgba(188, 80, 98, .17); --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
+    --syn-kw: #d58af0; --syn-str: #ecac54; --syn-cm: #7f7f7d; --syn-num: #7ea8d9;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 18px rgba(0, 0, 0, .35);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1f1e1d; --surface: #262624; --surface-2: #30302e; --canvas: #1b1a19; --dot: #302f2c;
-  --ink: #faf9f5; --ink-2: #d1cfc5; --muted: #9c9a92; --line: #3d3d3a;
-  --accent: #d97757; --accent-soft: rgba(217, 119, 87, .18);
-  --blue: #7fa8d0; --purple: #a78bd0; --teal: #6dbfb5; --orange: #d97757;
-  --add: #7fb88f; --add-bg: rgba(127, 184, 143, .15); --del: #e87a6e; --del-bg: rgba(232, 122, 110, .15); --mod: #e3b65a; --mod-bg: rgba(227, 182, 90, .17);
-  --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #8d8b83; --syn-num: #8fbfe8;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
+  --bg: #151515; --surface: #1f1f1f; --surface-2: #252525; --canvas: #151515; --dot: #262626; --sel: #363636;
+  --ink: #ececea; --ink-2: #dddddb; --muted: #888888; --line: #303030;
+  --accent: #6f9fd8; --accent-soft: rgba(111, 159, 216, .16);
+  --blue: #6f9fd8; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #d58384;
+  --add: #58b064; --add-bg: rgba(88, 176, 100, .15); --del: #bc5062; --del-bg: rgba(188, 80, 98, .17); --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
+  --syn-kw: #d58af0; --syn-str: #ecac54; --syn-cm: #7f7f7d; --syn-num: #7ea8d9;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 18px rgba(0, 0, 0, .35);
   color-scheme: dark;
 }
 
@@ -269,9 +268,9 @@ body { font-size: 14px; letter-spacing: -.003em; -webkit-font-smoothing: antiali
 .bp-seg { border-radius: 10px; padding: 2px; gap: 2px; background: var(--surface-2); border-color: var(--line); }
 .bp-seg button { border: 0; border-radius: 8px; padding: 5px 12px; color: var(--muted); }
 .bp-seg button:hover { color: var(--ink); }
-.bp-seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, .12); }
+.bp-seg button.on { background: var(--sel); color: var(--ink); font-weight: 600; }
 .bp-btn { border-radius: 9px; background: var(--surface); }
-.bp-btn:hover { background: var(--surface-2); border-color: var(--line); }
+.bp-btn:hover { background: var(--sel); border-color: var(--line); }
 .bp-select { border-radius: 9px; background: var(--surface); color: var(--ink); }
 .bp-panel { border-radius: 14px; }
 .bp-card, .bp-insp { border-radius: 14px; background: var(--surface); }
