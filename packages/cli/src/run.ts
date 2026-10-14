@@ -239,7 +239,7 @@ async function watchCommand(
   io.out(`blueprint  watching ${root}\n`);
   io.out(`blueprint  ${srv.url}\n`);
   if (!values['no-open'] && drivenByClaude()) {
-    io.out('blueprint  not opening your browser (started from Claude Code), use the url above or the browser pane\n');
+    io.out('blueprint  not opening your browser (Claude Code started this). open the url above in the browser pane, or run `blueprint watch` yourself in a terminal to have it open for you\n');
   } else if (!values['no-open'] && canOpenBrowser()) await openBrowser(srv.url);
 
   // run until ctrl-c
