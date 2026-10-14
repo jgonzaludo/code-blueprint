@@ -3,16 +3,16 @@
 @font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-500.woff2') format('woff2'); font-weight: 500 700; font-display: swap; }
 
 :root {
-  /* light, close to Claude's own: warm paper, near-black ink, clay accent */
-  --bg: #faf9f5; --surface: #ffffff; --surface-2: #f5f4ed; --canvas: #f0eee6; --dot: #ddd8ca;
-  --ink: #141413; --ink-2: #3d3d3a; --muted: #73726c; --line: #ded9cc;
-  --accent: #3f78bf; --accent-soft: #dbe7f6; --sel: #ebe8dd; --code: #b8505a;
-  --blue: #5b88b3; --purple: #8a6fb8; --teal: #4f9a93; --orange: #c96442;
-  --add: #3b8f48; --add-bg: rgba(59, 143, 72, .13); --del: #b3394d; --del-bg: rgba(179, 57, 77, .12); --mod: #b8761a; --mod-bg: rgba(236, 172, 84, .22);
-  --syn-kw: #9a4a8f; --syn-str: #b4592f; --syn-cm: #8a8880; --syn-num: #3d78a8;
-  --shadow: 0 1px 2px rgba(20, 20, 19, .08), 0 6px 18px rgba(20, 20, 19, .06);
-  /* the same stacks claude.ai declares: its own faces first, then system fonts. the open faces in the
-     middle are bundled stand-ins for when the page can't see Anthropic's (they're not shipped). */
+  /* light, sampled from the app's light theme: near-white chat, #fafaf8 sidebar, #eeecea selected row.
+     borders are estimated from the selected row, they weren't visible enough to sample cleanly. */
+  --bg: #fcfcfc; --surface: #ffffff; --surface-2: #f6f6f4; --canvas: #fcfcfc; --dot: #e6e5e1; --sel: #eeecea;
+  --ink: #161616; --ink-2: #2b2b2a; --muted: #8e8e8c; --line: #e4e2de;
+  --accent: #1b6fc2; --accent-soft: #e3eefa;
+  --blue: #1b6fc2; --purple: #8c7daf; --teal: #4f9a93; --orange: #b8761a; --code: #7f4d4e;
+  --add: #209d38; --add-bg: #edf6ec; --del: #cd3b3a; --del-bg: #fdedee; --mod: #b8761a; --mod-bg: rgba(236, 172, 84, .22);
+  /* Claude Light code theme */
+  --syn-kw: #ba6830; --syn-str: #578c5d; --syn-cm: #929290; --syn-num: #1b6fc2;
+  --shadow: 0 1px 2px rgba(20, 20, 19, .07), 0 6px 18px rgba(20, 20, 19, .06);
   --font-ui: 'Anthropic Sans', 'Instrument Sans', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'Anthropic Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
@@ -22,8 +22,9 @@
     --ink: #ececea; --ink-2: #dddddb; --muted: #888888; --line: #303030;
     --accent: #6f9fd8; --accent-soft: rgba(111, 159, 216, .16);
     --blue: #6f9fd8; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #d58384;
-    --add: #58b064; --add-bg: rgba(88, 176, 100, .15); --del: #bc5062; --del-bg: rgba(188, 80, 98, .17); --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
-    --syn-kw: #d58af0; --syn-str: #ecac54; --syn-cm: #7f7f7d; --syn-num: #7ea8d9;
+    --add: #58b064; --add-bg: #243222; --del: #bc5062; --del-bg: #392221; --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
+    /* Claude Dark code theme */
+    --syn-kw: #b887d5; --syn-str: #bdbc96; --syn-cm: #727270; --syn-num: #7ea9d3;
     --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 18px rgba(0, 0, 0, .35);
     color-scheme: dark;
   }
@@ -33,8 +34,9 @@
   --ink: #ececea; --ink-2: #dddddb; --muted: #888888; --line: #303030;
   --accent: #6f9fd8; --accent-soft: rgba(111, 159, 216, .16);
   --blue: #6f9fd8; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #d58384;
-  --add: #58b064; --add-bg: rgba(88, 176, 100, .15); --del: #bc5062; --del-bg: rgba(188, 80, 98, .17); --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
-  --syn-kw: #d58af0; --syn-str: #ecac54; --syn-cm: #7f7f7d; --syn-num: #7ea8d9;
+  --add: #58b064; --add-bg: #243222; --del: #bc5062; --del-bg: #392221; --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
+  /* Claude Dark code theme */
+    --syn-kw: #b887d5; --syn-str: #bdbc96; --syn-cm: #727270; --syn-num: #7ea9d3;
   --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 18px rgba(0, 0, 0, .35);
   color-scheme: dark;
 }

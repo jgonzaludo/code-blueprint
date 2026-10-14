@@ -176,6 +176,15 @@ run('map page in a real browser', () => {
     await s.ctx.close();
   });
 
+  it('matches the app in light too', async () => {
+    const s = await open(1280, 800, 'light');
+    if (!s) return;
+    // the app's light chat background, sampled from a real screenshot
+    expect(await s.page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(252, 252, 252)');
+    await s.page.screenshot({ path: path.join(outDir, 'light-map.png') });
+    await s.ctx.close();
+  });
+
   it('updates in place when a file is saved', async () => {
     const s = await open();
     if (!s) return;
