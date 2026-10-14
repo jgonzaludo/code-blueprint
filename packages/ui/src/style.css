@@ -21,7 +21,7 @@
     --bg: #151515; --surface: #1f1f1f; --surface-2: #252525; --canvas: #151515; --dot: #262626; --sel: #363636;
     --ink: #ececea; --ink-2: #dddddb; --muted: #7f7f7d; --line: #303030;
     --accent: #7ea8d9; --accent-soft: rgba(126, 168, 217, .16);
-    --blue: #7ea8d9; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #d58384;
+    --blue: #7ea8d9; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #de8c8c;
     --add: #5fb96b; --add-bg: #243222; --del: #bc5062; --del-bg: #392221; --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
     /* Claude Dark code theme */
     --syn-kw: #b887d5; --syn-str: #bdbc96; --syn-cm: #727270; --syn-num: #7ea9d3;
@@ -33,7 +33,7 @@
   --bg: #151515; --surface: #1f1f1f; --surface-2: #252525; --canvas: #151515; --dot: #262626; --sel: #363636;
   --ink: #ececea; --ink-2: #dddddb; --muted: #7f7f7d; --line: #303030;
   --accent: #7ea8d9; --accent-soft: rgba(126, 168, 217, .16);
-  --blue: #7ea8d9; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #d58384;
+  --blue: #7ea8d9; --purple: #b794d9; --teal: #5fb3a8; --orange: #ecac54; --code: #de8c8c;
   --add: #5fb96b; --add-bg: #243222; --del: #bc5062; --del-bg: #392221; --mod: #ecac54; --mod-bg: rgba(236, 172, 84, .16);
   /* Claude Dark code theme */
     --syn-kw: #b887d5; --syn-str: #bdbc96; --syn-cm: #727270; --syn-num: #7ea9d3;
