@@ -140,6 +140,8 @@ function bounds(): Box {
   for (const c of Object.values(cardBox)) {
     x0 = Math.min(x0, c.x); y0 = Math.min(y0, c.y); x1 = Math.max(x1, c.x + c.w); y1 = Math.max(y1, c.y + c.h);
   }
+  // the "New files" label floats above the band, so leave room for it
+  if (mode === 'plan' && Number.isFinite(y0)) y0 -= 110;
   return Number.isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : { x: 0, y: 0, w: 800, h: 600 };
 }
 const fitAll = (ms: number) => animateTo(rectCam(bounds(), 30, 1), ms);
@@ -180,6 +182,7 @@ vp.addEventListener('pointerdown', (e) => {
   drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y };
   moved = false;
   touched = true;
+  $('bp-hint').hidden = true;
   cancelAnimationFrame(raf);
 });
 vp.addEventListener('pointermove', (e) => {
@@ -516,27 +519,33 @@ const lineRange = (b: Block): string => {
 function inspect(): void {
   const el = $('bp-insp');
   if (!sel || !state) {
-    el.innerHTML = '<p class="bp-ph">Select a block to see what calls it and what it calls. Zoom out for the project, zoom in to read every line.</p>';
+    el.hidden = true;
+    el.innerHTML = '';
     return;
   }
+  el.hidden = false;
   const g = view().graph;
   const b = g.blocks[sel] as Block;
   const by = g.edges.filter((e) => e.to === sel && e.status !== 'del');
   const uses = g.edges.filter((e) => e.from === sel && e.status !== 'del');
+  const MAX = 5;
   const chip = (e: Edge, dir: 'by' | 'uses') => {
     const other = dir === 'by' ? e.from : e.to;
     const ob = g.blocks[other];
     const line = dir === 'by' ? e.callLine : e.targetLine;
     return `<button class="bp-chip ${e.status === 'new' ? 'bp-nw' : ''}" data-go="${esc(other)}"><b>${esc(shortName(other))}</b> <i>${line ? `L${line} ` : ''}${esc(ob?.file ?? '')}</i></button>`;
   };
-  const list = (es: Edge[], dir: 'by' | 'uses') => (es.length ? es.map((e) => chip(e, dir)).join('') : '<span class="bp-none">nothing in the current map</span>');
+  const list = (es: Edge[], dir: 'by' | 'uses') =>
+    es.slice(0, MAX).map((e) => chip(e, dir)).join('') + (es.length > MAX ? `<span class="bp-none">and ${es.length - MAX} more</span>` : '');
+  const grp = (title: string, es: Edge[], dir: 'by' | 'uses') => (es.length ? `<div class="bp-grp"><h4>${title}</h4>${list(es, dir)}</div>` : '');
   const st = b.status === 'same' ? '' : `<span class="bp-tag bp-t-${b.status}">${b.status === 'mod' ? 'modified' : b.status === 'new' ? 'new' : 'deleted'}</span>`;
   el.innerHTML =
-    `<div class="bp-ih"><span class="bp-bk">${b.kind}</span><span class="bp-nm">${esc(b.name)}</span>${st}</div>` +
+    `<div class="bp-ih"><span class="bp-nm">${esc(b.name)}</span>${st}<button class="bp-x" id="bp-insp-x" aria-label="Close">x</button></div>` +
     `<div class="bp-loc">${esc(b.file)} : ${lineRange(b)}</div>` +
-    (isSnapshot ? '' : `<button class="bp-btn" id="bp-openbtn">Open in editor</button><span class="bp-none" id="bp-openmsg"></span>`) +
-    `<div class="bp-grp"><h4>Used by</h4>${list(by, 'by')}</div><div class="bp-grp"><h4>Uses</h4>${list(uses, 'uses')}</div>`;
+    (grp('Used by', by, 'by') + grp('Uses', uses, 'uses') || '<div class="bp-none">Nothing calls this and it calls nothing here.</div>') +
+    (isSnapshot ? '' : `<button class="bp-btn" id="bp-openbtn">Open in editor</button> <span class="bp-none" id="bp-openmsg"></span>`);
   el.querySelectorAll<HTMLElement>('[data-go]').forEach((c) => (c.onclick = () => goBlock(c.dataset.go as string)));
+  $('bp-insp-x').onclick = () => select(null);
   const openBtn = document.getElementById('bp-openbtn');
   if (openBtn) openBtn.onclick = async () => {
     const msg = $('bp-openmsg');
@@ -548,10 +557,6 @@ function inspect(): void {
       msg.textContent = 'could not reach the watcher';
     }
   };
-}
-
-function item(mark: [string, string], label: string, small: string, go: string): string {
-  return `<button class="bp-it" data-go="${esc(go)}"><span class="bp-m ${mark[1]}">${mark[0]}</span><span>${esc(label)}</span><small>${esc(small)}</small></button>`;
 }
 
 // returns an error message, or null when it worked
@@ -582,21 +587,6 @@ async function review(plan: PlanState, st: 'approved' | 'changes', note?: string
     return;
   }
   await load().catch(() => {});
-}
-
-// the review step lives inside the plan view. it only shows up once Claude has marked the plan ready,
-// so a plan nobody asked to review looks and works exactly as it did before.
-function reviewBlock(plan: PlanState): string {
-  const r = plan.review;
-  const err = reviewError ? `<div class="bp-rec bp-bad"><b>That did not go through.</b> ${esc(reviewError)}</div>` : '';
-  if (r.state === 'drafting') return err;
-  if (r.state === 'ready') {
-    return err + `<div class="bp-rec"><b>Ready for your review.</b> Claude marked this plan finished and is waiting for your go.` +
-      (isSnapshot ? '' : `<div class="bp-revbar"><button class="bp-btn bp-ok" id="bp-approve">Approve</button><button class="bp-btn" id="bp-changes-btn">Ask for changes</button></div>` +
-        `<div class="bp-revnote" id="bp-revnote" hidden><input id="bp-note" placeholder="what should change?" maxlength="300"><button class="bp-btn" id="bp-send">Send</button></div>`) + `</div>`;
-  }
-  if (r.state === 'approved') return err + `<div class="bp-rec bp-good"><b>Approved.</b> Claude can apply it now.</div>`;
-  return err + `<div class="bp-rec bp-bad"><b>Changes requested.</b>${r.note ? ` ${esc(r.note)}` : ''} Claude will revise the draft.</div>`;
 }
 
 function planPicker(): string {
@@ -630,64 +620,49 @@ function wireReview(el: HTMLElement): void {
 }
 
 function renderChanges(): void {
-  const el = $('bp-changes');
+  const el = $('bp-card');
+  const legend = $('bp-legend');
   if (!state) return;
-  const g = view().graph;
   const plan = state.plan;
-  const sh = $('bp-sh1');
   let h = '';
+  legend.hidden = true;
 
-  if (mode === 'plan' && plan) {
-    sh.textContent = `Plan: ${plan.title}`;
-    h += planPicker() + reviewBlock(plan);
-    const newFiles = Object.keys(g.fstat).filter((f) => g.fstat[f] === 'new').sort();
-    const changed = Object.values(g.blocks).filter((b) => b.status === 'mod' || (b.status === 'new' && g.fstat[b.file] === 'mod'));
-    const touched = [...usedByNewCode(g)].sort();
-    const blocksIn = (f: string) => Object.values(g.blocks).filter((b) => b.file === f && b.kind !== 'imports').length;
-    if (newFiles.length) h += `<div class="bp-grp"><h4>New files, above the map</h4>${newFiles.map((f) => item(['+', 'bp-n'], fileName(f), `${blocksIn(f)} blocks`, `f:${f}`)).join('')}</div>`;
-    if (changed.length) h += `<div class="bp-grp"><h4>Changed files</h4>${changed.map((b) => item(['~', 'bp-c2'], `${fileName(b.file)} ${b.name}`, b.status === 'new' ? 'new slot' : `${b.lines.filter((l) => l.d !== ' ').length} lines`, `b:${b.id}`)).join('')}</div>`;
-    if (touched.length) h += `<div class="bp-grp"><h4>Used by the new code (unchanged)</h4>${touched.map((f) => item(['>', 'bp-u'], fileName(f), 'unchanged', `f:${f}`)).join('')}</div>`;
-    const parsed = g.edges.filter((e) => e.status === 'new' && e.source !== 'claim').length;
-    const claims = g.edges.filter((e) => e.source === 'claim').length;
-    h += `<div class="bp-rec"><b>Proposed, not on disk yet.</b> ${parsed} dashed arrows come from the draft code, so the parser can read them. ${claims ? `${claims} more ${claims === 1 ? 'is a claim' : 'are claims'} with a hollow head: ${claims === 1 ? 'a call' : 'calls'} the plan says will exist but no draft file contains. ${claims === 1 ? 'It stays' : 'They stay'} a claim until the parser checks the real code.` : ''}</div>`;
-  } else if (mode === 'applied' && plan) {
-    sh.textContent = `After applying: ${plan.title}`;
-    h += planPicker();
+  if (plan && mode === 'plan') {
+    const r = plan.review;
+    const status =
+      r.state === 'ready' ? 'Ready for your review'
+      : r.state === 'approved' ? 'Approved'
+      : r.state === 'changes' ? `Changes requested${r.note ? `: ${esc(r.note)}` : ''}`
+      : 'Proposed';
+    const cls = r.state === 'approved' ? ' bp-good' : r.state === 'changes' ? ' bp-bad' : '';
+    h += `<div class="bp-cardhead${cls}"><b>${esc(plan.title)}</b><span>${status}</span></div>`;
+    if (r.state === 'ready' && !isSnapshot) {
+      h += `<div class="bp-revbar"><button class="bp-btn bp-ok" id="bp-approve">Approve</button><button class="bp-btn" id="bp-changes-btn">Ask for changes</button></div>` +
+        `<div class="bp-revnote" id="bp-revnote" hidden><input id="bp-note" placeholder="what should change?" maxlength="300"><button class="bp-btn" id="bp-send">Send</button></div>`;
+    }
+    if (reviewError) h += `<div class="bp-err">That did not go through: ${esc(reviewError)}</div>`;
+    h += '<div class="bp-legendrow"><span class="bp-lg bp-lg-solid"></span>in the code <span class="bp-lg bp-lg-dash"></span>proposed <span class="bp-lg bp-lg-hollow"></span>claim</div>';
+  } else if (plan && mode === 'applied') {
     const c = plan.check;
     const bad = c.edges.filter((e) => e.check !== 'confirmed');
-    const label = (e: CheckEdge) => `${fileName(e.from.split('::')[0] as string)} ${shortName(e.from)} to ${shortName(e.to)}`;
-    h += `<div class="bp-rec ${c.summary.missing || c.summary.unplanned ? 'bp-bad' : 'bp-good'}"><b>${c.summary.confirmed} of ${c.summary.planned} proposed arrows confirmed</b> by the parser after the edit.`;
-    if (plan.state === 'proposed') h += ' <i>The plan has not been applied yet, so nothing can be confirmed.</i>';
-    if (bad.length) {
-      h += '<ul>' + bad.map((e) => `<li>${e.check === 'missing' ? 'Not in the code' : 'Unplanned call'}: <code>${esc(label(e))}</code>${e.source === 'claim' ? ' (claim)' : ''}</li>`).join('') + '</ul>';
+    const label = (e: CheckEdge) => `${shortName(e.from)} to ${shortName(e.to)}`;
+    const cls = bad.length || c.blocks.missing.length ? ' bp-bad' : ' bp-good';
+    h += `<div class="bp-cardhead${cls}"><b>${c.summary.confirmed} of ${c.summary.planned} planned arrows confirmed</b><span>${esc(plan.title)}</span></div>`;
+    if (plan.state === 'proposed') h += '<div class="bp-note">Not applied yet, so nothing can be confirmed.</div>';
+    const shown = bad.slice(0, 3);
+    if (shown.length) {
+      h += '<ul class="bp-probs">' + shown.map((e) => `<li><span class="${e.check === 'missing' ? 'bp-miss' : 'bp-unpl'}">${e.check === 'missing' ? 'not in the code' : 'unplanned'}</span> ${esc(label(e))}</li>`).join('') +
+        (bad.length > 3 ? `<li class="bp-none">and ${bad.length - 3} more, ask Claude for the full list</li>` : '') + '</ul>';
     }
-    if (c.blocks.missing.length) h += `<p>Planned blocks not written: ${c.blocks.missing.map((m) => `<code>${esc(m)}</code>`).join(', ')}</p>`;
-    if (c.blocks.extra.length) h += `<p>New blocks nobody planned: ${c.blocks.extra.map((m) => `<code>${esc(m)}</code>`).join(', ')}</p>`;
-    h += '</div>';
-    if (plan.state === 'applied' && !isSnapshot) h += `<button class="bp-btn" id="bp-archive">Archive this plan</button>`;
-  } else {
-    sh.textContent = `Changes vs ${g.meta?.baseline ?? 'HEAD'}`;
-    const rows = Object.keys(g.fstat).sort().filter((f) => g.fstat[f] !== 'same');
-    if (!rows.length) {
-      h = `<p>No changes. The map matches ${esc(g.meta?.baseline ?? 'the baseline')}. Edit and save a file and the changed blocks will light up here.</p>`;
-    } else {
-      h = rows.map((f) => {
-        const s = g.fstat[f];
-        const mark: [string, string] = s === 'new' ? ['+', 'bp-n'] : s === 'del' ? ['-', 'bp-d'] : ['~', 'bp-c2'];
-        const c = counts(f);
-        return item(mark, fileName(f), s === 'new' ? 'new file' : s === 'del' ? 'deleted' : `${c.mod + c.nw + c.del || 1} blocks`, `f:${f}`);
-      }).join('');
-    }
+    if (plan.state === 'applied' && !isSnapshot) h += `<div class="bp-revbar"><button class="bp-btn" id="bp-archive">Archive this plan</button></div>`;
+    if (reviewError) h += `<div class="bp-err">${esc(reviewError)}</div>`;
+    h += '<div class="bp-legendrow"><span class="bp-lg bp-lg-conf"></span>confirmed <span class="bp-lg bp-lg-miss"></span>not in the code <span class="bp-lg bp-lg-unpl"></span>unplanned</div>';
   }
+  // more than one plan: a picker. otherwise nothing extra
+  if (plan && mode !== 'current') h += planPicker();
+  el.hidden = !h;
   el.innerHTML = h;
   wireReview(el);
-  el.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => {
-    b.onclick = () => {
-      const [k, v] = (b.dataset.go as string).split(/:(.+)/);
-      if (k === 'f') goFile(v as string);
-      else goBlock(v as string);
-    };
-  });
 }
 
 function renderMeta(): void {
@@ -695,15 +670,15 @@ function renderMeta(): void {
   const g = state.graph;
   const m = g.meta;
   const v = view().graph;
-  const bits = [`${Object.keys(v.fstat).length} files`, `${Object.keys(v.blocks).length} blocks`, `${v.edges.filter((e) => e.status !== 'del').length} arrows`];
-  if (m?.typeErrors) bits.push(`${m.typeErrors} type errors, arrows may be incomplete`);
-  $('bp-meta').textContent = bits.join('  |  ');
+  // the counts live in chat. the window only warns about things that make the map less trustworthy.
+  $('bp-meta').textContent = m?.typeErrors ? `${m.typeErrors} type errors, some arrows may be missing` : '';
   ($('bp-empty') as HTMLElement).hidden = Object.keys(g.fstat).length > 0 || !!state.plan;
   // mode switch only exists when there is a plan to look at
   const scopeEl = $('bp-scope');
   const focus = focusSet(v);
   const total = Object.keys(v.fstat).length;
-  scopeEl.hidden = !focus || total < 2;
+  // only worth a control on a big project. small ones just open whole.
+  scopeEl.hidden = !focus || total <= FOCUS_ABOVE;
   if (focus) {
     const on = shownFiles(v) ? 'focus' : 'all';
     scopeEl.querySelectorAll<HTMLElement>('[data-s]').forEach((b) => b.classList.toggle('on', b.dataset.s === on));
@@ -713,9 +688,7 @@ function renderMeta(): void {
   const modes = $('bp-modes');
   modes.hidden = !state.plan;
   modes.querySelectorAll<HTMLElement>('[data-m]').forEach((b) => b.classList.toggle('on', b.dataset.m === mode));
-  const label = $('bp-planname');
-  label.hidden = !state.plan;
-  label.textContent = state.plan ? `${state.plan.title}${state.plan.state === 'applied' ? ' (applied)' : ' (proposed)'}` : '';
+  $('bp-planname').hidden = true;
 }
 
 function setMode(m: Mode, chosen = true): void {
