@@ -362,7 +362,7 @@ Every command that prints should support `--json` so Claude can parse it.
   - `GET /api/graph?plan=id` returns the Graph
   - `GET /api/events` is SSE for `graph`, `plan`, `check` events. SSE is simpler than websockets and good enough.
   - `POST /api/plan` is the convenience transport
-  - `POST /api/open` with `{file, line}` asks the editor to open the location (`code -g file:line` if present, else `$EDITOR`). This is how "click a block, jump to editor" works without a VS Code extension.
+  - Decided later: the window is read only, so there are no POST endpoints. Anything that changes state goes through the CLI, from chat or a terminal. Editor jumps belong to the VS Code extension.
 - **Auto-open:** use the `open` npm package (wraps `open`, `xdg-open` and `start`). Skip it when `--no-open`, when `CI` is set, or when there's no display.
 
 ### 10.4 Snapshot (for the Claude app and sharing)

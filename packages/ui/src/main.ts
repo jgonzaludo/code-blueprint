@@ -390,15 +390,15 @@ function lineY(id: string, line: number | undefined, useOld: boolean): number {
 function route(a: BlockPos, t: BlockPos, y1: number, y2: number): { d: string; x: number; y: number } {
   if (t.x >= a.x + a.w) {
     const x1 = a.x + a.w, x2 = t.x, dx = Math.max(40, (x2 - x1) / 2.4);
-    return { d: `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2 - 4} ${y2}`, x: x1, y: y1 };
+    return { d: `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2 - 4} ${y2}`, x: x1 + 4, y: y1 };
   }
   if (t.x + t.w <= a.x) {
     const x1 = a.x, x2 = t.x + t.w, dx = Math.max(40, (x1 - x2) / 2.4);
-    return { d: `M${x1} ${y1} C${x1 - dx} ${y1} ${x2 + dx} ${y2} ${x2 + 4} ${y2}`, x: x1, y: y1 };
+    return { d: `M${x1} ${y1} C${x1 - dx} ${y1} ${x2 + dx} ${y2} ${x2 + 4} ${y2}`, x: x1 - 4, y: y1 };
   }
   // same column: bow out to the right
   const x1 = a.x + a.w, x2 = t.x + t.w, o = Math.max(x1, x2) + 50;
-  return { d: `M${x1} ${y1} C${o} ${y1} ${o} ${y2} ${x2 + 4} ${y2}`, x: x1, y: y1 };
+  return { d: `M${x1} ${y1} C${o} ${y1} ${o} ${y2} ${x2 + 4} ${y2}`, x: x1 + 4, y: y1 };
 }
 
 const DEFS = '<defs><marker id="bp-mb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="bp-mk-b" d="M0 0L8 4L0 8z"/></marker>' +
@@ -473,12 +473,16 @@ function drawFileEdges(): void {
     }
     const k = fe.status === 'del' ? 'bp-gone' : fe.status === 'new' ? 'bp-new' : '';
     const mk = fe.status === 'del' ? 'bp-fmg' : fe.status === 'new' ? 'bp-fmn' : 'bp-fmb';
-    s += `<path class="bp-ed ${k}" d="${d}" marker-end="url(#${mk})"/>`;
+    s += `<path class="bp-ed ${k}" data-ff="${esc(fe.from)}" data-ft="${esc(fe.to)}" d="${d}" marker-end="url(#${mk})"/>`;
   }
   svg.innerHTML = s;
 }
 
 /* selection and inspector */
+// hovering a block lights up its arrows, selecting one also dims everything else. the lit arrows
+// animate along their direction so you can see which way the call goes.
+let hover: string | null = null;
+
 function applySelection(): void {
   const g = state ? view().graph : undefined;
   const related = new Set<string>();
@@ -493,10 +497,18 @@ function applySelection(): void {
     p.el?.classList.toggle('bp-sel', id === sel);
     p.el?.classList.toggle('bp-dim', !!sel && !related.has(id));
   }
+  const focus = sel ?? hover;
+  const focusFile = focus ? blockPos.get(focus)?.file : null;
   world.querySelectorAll('#bp-bsvg .bp-ed').forEach((el) => {
-    const f = el.getAttribute('data-from');
-    const t = el.getAttribute('data-to');
-    el.classList.toggle('bp-dim', !!sel && f !== sel && t !== sel);
+    const touches = !!focus && (el.getAttribute('data-from') === focus || el.getAttribute('data-to') === focus);
+    el.classList.toggle('bp-hot', touches);
+    el.classList.toggle('bp-dim', !!focus && !touches);
+  });
+  // at map zoom the arrows are file to file
+  world.querySelectorAll('#bp-fsvg .bp-ed').forEach((el) => {
+    const touches = !!focusFile && (el.getAttribute('data-ff') === focusFile || el.getAttribute('data-ft') === focusFile);
+    el.classList.toggle('bp-hot', touches);
+    el.classList.toggle('bp-dim', !!focusFile && !touches);
   });
 }
 
@@ -542,51 +554,9 @@ function inspect(): void {
   el.innerHTML =
     `<div class="bp-ih"><span class="bp-nm">${esc(b.name)}</span>${st}<button class="bp-x" id="bp-insp-x" aria-label="Close">x</button></div>` +
     `<div class="bp-loc">${esc(b.file)} : ${lineRange(b)}</div>` +
-    (grp('Used by', by, 'by') + grp('Uses', uses, 'uses') || '<div class="bp-none">Nothing calls this and it calls nothing here.</div>') +
-    (isSnapshot ? '' : `<button class="bp-btn" id="bp-openbtn">Open in editor</button> <span class="bp-none" id="bp-openmsg"></span>`);
+    (grp('Used by', by, 'by') + grp('Uses', uses, 'uses') || '<div class="bp-none">Nothing calls this and it calls nothing here.</div>');
   el.querySelectorAll<HTMLElement>('[data-go]').forEach((c) => (c.onclick = () => goBlock(c.dataset.go as string)));
   $('bp-insp-x').onclick = () => select(null);
-  const openBtn = document.getElementById('bp-openbtn');
-  if (openBtn) openBtn.onclick = async () => {
-    const msg = $('bp-openmsg');
-    msg.textContent = '';
-    try {
-      const r = await fetch('/api/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ file: b.file, line: firstLineOf(b) }) });
-      if (!r.ok) msg.textContent = ((await r.json()) as { error?: string }).error ?? 'could not open';
-    } catch {
-      msg.textContent = 'could not reach the watcher';
-    }
-  };
-}
-
-// returns an error message, or null when it worked
-async function post(path: string, body: unknown): Promise<string | null> {
-  try {
-    const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    if (r.ok) return null;
-    const j = (await r.json().catch(() => ({}))) as { error?: string };
-    return j.error ?? `the watcher said ${r.status}`;
-  } catch {
-    return 'could not reach the watcher';
-  }
-}
-
-let reviewError = '';
-
-// the click shows its effect straight away, then the server confirms (or we put it back and say why)
-async function review(plan: PlanState, st: 'approved' | 'changes', note?: string): Promise<void> {
-  reviewError = '';
-  const before = plan.review;
-  plan.review = { state: st, note };
-  renderChanges();
-  const err = await post('/api/plan/review', { id: plan.id, state: st, note });
-  if (err) {
-    plan.review = before;
-    reviewError = err;
-    renderChanges();
-    return;
-  }
-  await load().catch(() => {});
 }
 
 function planPicker(): string {
@@ -598,25 +568,8 @@ function planPicker(): string {
 }
 
 function wireReview(el: HTMLElement): void {
-  const plan = state?.plan;
-  if (!plan) return;
   const pick = el.querySelector<HTMLSelectElement>('#bp-picker');
   if (pick) pick.onchange = () => { planChoice = pick.value; void load().catch(() => {}); };
-  const ap = el.querySelector<HTMLElement>('#bp-approve');
-  if (ap) ap.onclick = () => { ap.textContent = 'Approving...'; (ap as HTMLButtonElement).disabled = true; void review(plan, 'approved'); };
-  const ch = el.querySelector<HTMLElement>('#bp-changes-btn');
-  const note = el.querySelector<HTMLElement>('#bp-revnote');
-  if (ch && note) ch.onclick = () => { note.hidden = false; (note.querySelector('input') as HTMLInputElement).focus(); };
-  const send = el.querySelector<HTMLElement>('#bp-send');
-  if (send) send.onclick = () => { (send as HTMLButtonElement).disabled = true; void review(plan, 'changes', (el.querySelector('#bp-note') as HTMLInputElement).value); };
-  const arch = el.querySelector<HTMLElement>('#bp-archive');
-  if (arch) arch.onclick = async () => {
-    (arch as HTMLButtonElement).disabled = true;
-    const err = await post('/api/plan/archive', { id: plan.id });
-    if (err) { reviewError = err; renderChanges(); return; }
-    planChoice = null;
-    await load().catch(() => {});
-  };
 }
 
 function renderChanges(): void {
@@ -630,17 +583,12 @@ function renderChanges(): void {
   if (plan && mode === 'plan') {
     const r = plan.review;
     const status =
-      r.state === 'ready' ? 'Ready for your review'
+      r.state === 'ready' ? 'Ready for your review. Say go in chat, or tell Claude what to change.'
       : r.state === 'approved' ? 'Approved'
       : r.state === 'changes' ? `Changes requested${r.note ? `: ${esc(r.note)}` : ''}`
       : 'Proposed';
     const cls = r.state === 'approved' ? ' bp-good' : r.state === 'changes' ? ' bp-bad' : '';
     h += `<div class="bp-cardhead${cls}"><b>${esc(plan.title)}</b><span>${status}</span></div>`;
-    if (r.state === 'ready' && !isSnapshot) {
-      h += `<div class="bp-revbar"><button class="bp-btn bp-ok" id="bp-approve">Approve</button><button class="bp-btn" id="bp-changes-btn">Ask for changes</button></div>` +
-        `<div class="bp-revnote" id="bp-revnote" hidden><input id="bp-note" placeholder="what should change?" maxlength="300"><button class="bp-btn" id="bp-send">Send</button></div>`;
-    }
-    if (reviewError) h += `<div class="bp-err">That did not go through: ${esc(reviewError)}</div>`;
     h += '<div class="bp-legendrow"><span class="bp-lg bp-lg-solid"></span>in the code <span class="bp-lg bp-lg-dash"></span>proposed <span class="bp-lg bp-lg-hollow"></span>claim</div>';
   } else if (plan && mode === 'applied') {
     const c = plan.check;
@@ -654,8 +602,6 @@ function renderChanges(): void {
       h += '<ul class="bp-probs">' + shown.map((e) => `<li><span class="${e.check === 'missing' ? 'bp-miss' : 'bp-unpl'}">${e.check === 'missing' ? 'not in the code' : 'unplanned'}</span> ${esc(label(e))}</li>`).join('') +
         (bad.length > 3 ? `<li class="bp-none">and ${bad.length - 3} more, ask Claude for the full list</li>` : '') + '</ul>';
     }
-    if (plan.state === 'applied' && !isSnapshot) h += `<div class="bp-revbar"><button class="bp-btn" id="bp-archive">Archive this plan</button></div>`;
-    if (reviewError) h += `<div class="bp-err">${esc(reviewError)}</div>`;
     h += '<div class="bp-legendrow"><span class="bp-lg bp-lg-conf"></span>confirmed <span class="bp-lg bp-lg-miss"></span>not in the code <span class="bp-lg bp-lg-unpl"></span>unplanned</div>';
   }
   // more than one plan: a picker. otherwise nothing extra
@@ -728,6 +674,23 @@ world.addEventListener('keydown', (e) => {
     goBlock(b.dataset.id as string);
   }
 });
+world.addEventListener('mouseover', (e) => {
+  const t = e.target as HTMLElement;
+  const b = t.closest<HTMLElement>('.bp-blk');
+  const f = t.closest<HTMLElement>('.bp-file');
+  // a file card stands in for its first block at map zoom, so file arrows light up too
+  const id = b?.dataset.id ?? (f ? ([...blockPos].find(([, p]) => p.file === f.dataset.f)?.[0] ?? null) : null);
+  if (id !== hover) {
+    hover = id;
+    applySelection();
+  }
+});
+world.addEventListener('mouseleave', () => {
+  if (hover !== null) {
+    hover = null;
+    applySelection();
+  }
+});
 world.addEventListener('dblclick', (e) => {
   const f = (e.target as HTMLElement).closest<HTMLElement>('.bp-file');
   if (f) goFile(f.dataset.f as string);
@@ -774,7 +737,6 @@ function connect(): void {
     const when = state?.graph.meta?.parsedAt ? new Date(state.graph.meta.parsedAt).toLocaleString() : '';
     live.textContent = when ? `snapshot, ${when}` : 'snapshot';
     live.className = 'bp-live';
-    $('bp-relayout').hidden = true;
     return;
   }
   const es = new EventSource('/api/events');
@@ -829,11 +791,6 @@ $('bp-scope').querySelectorAll<HTMLElement>('[data-s]').forEach((b) => {
 $('bp-modes').querySelectorAll<HTMLElement>('[data-m]').forEach((b) => {
   b.onclick = () => setMode(b.dataset.m as Mode);
 });
-$('bp-relayout').onclick = async () => {
-  await fetch('/api/relayout', { method: 'POST' }).catch(() => {});
-  await load().catch(() => {});
-  fitAll(500);
-};
 new ResizeObserver(() => {
   if (!touched && state) fitAll(0);
   scheduleFill();

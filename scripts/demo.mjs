@@ -34,9 +34,10 @@ bp('plan', 'ready', 'refund-support');
 
 console.log(`\nDemo project: ${root}\n`);
 console.log('What to try:');
-console.log('  1. In the browser: you are on "Claude\'s plan". Click Approve (or Ask for changes).');
+console.log('  1. In the browser: you are on "Claude\'s plan" and the card says it is ready for review.');
 console.log('  2. Zoom into orders.ts: the OrderStatus line change and the new restock method are marked.');
-console.log('  3. In another terminal, from that folder:');
+console.log('  3. The window is read only. Answer in a terminal, from that folder:');
+console.log(`       node ${cli} plan approve refund-support    (or: plan changes refund-support --note "...")`);
 console.log(`       cd ${root}`);
 console.log(`       node ${cli} plan apply refund-support`);
 console.log(`       node ${cli} check`);

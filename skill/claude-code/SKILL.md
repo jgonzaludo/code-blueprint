@@ -43,15 +43,15 @@ Match how Claude Code itself is being used:
 2. `blueprint plan new <id> --title "<short title>"` where `<id>` is lowercase with dashes.
 3. For each file: `blueprint plan add <id> <repo/relative/path> --from <tempfile>` (or pipe the contents on stdin). To delete a file: `blueprint plan rm <id> <path>`. The map shows files as you add them, so add them together once the draft is complete.
 4. Only for a call you intend but did not write into any draft (a stub, a follow up): `blueprint plan claim <id> <fromBlock> <toBlock> --note "<why>"`. Blocks look like `src/a.ts::name`. Claims are drawn dashed with a hollow head. Do not use claims for things the drafts already contain.
-5. `blueprint plan ready <id>`. This marks the draft finished and puts Approve and Ask for changes buttons in the plan view.
+5. `blueprint plan ready <id>`. This marks the draft finished. The window shows "Ready for your review" and has nothing to click: the user answers in chat.
 6. `blueprint plan show <id>` and summarize it in chat in a few lines: new files, changed blocks with exact lines, what the new code uses. Tell the user the plan is on the map (new files in a band on top, zoom in for exact lines) and wait.
-7. Do not edit real files until the user says go. If they say go in chat, that is enough. If they use the buttons, `blueprint plan status <id> --json` tells you: `approved`, or `changes` with a `note`. On `changes`, revise the drafts (`plan add` again) and mark it ready again.
+7. Do not edit real files until the user says go. When they say go, run `blueprint plan approve <id>` so the window shows Approved. If they ask for changes, run `blueprint plan changes <id> --note "<what they said>"`, revise the drafts (`plan add` again) and mark it ready again.
 
 If you are in Claude Code plan mode, do steps 1 to 6 through the `blueprint plan` commands (they write under `.blueprint/`), so the user reviews the map and your plan text together.
 
 ## After approval
 
-1. Make the edits, or run `blueprint plan apply <id>`. If the plan was marked ready, apply waits for the user's go. Pass `--yes` only when the user said go in chat.
+1. Make the edits, or run `blueprint plan apply <id>`. Once you have run `plan approve` it applies. Never pass `--yes` unless the user said go in chat in this turn.
 2. `blueprint check <id> --json`.
 3. Report honestly, in this shape: "N of M planned arrows confirmed." Then list each `missing` (planned, not in the code) and each `unplanned` (in the code, nobody planned it). Never call an arrow confirmed unless the check did.
 4. Ask whether to fix the code or drop that arrow from the plan. Do not silently fix or silently ignore. Once it is settled, `blueprint plan archive <id>` tidies it away.

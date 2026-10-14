@@ -209,3 +209,14 @@ button:focus-visible, .bp-blk:focus-visible, .bp-vp:focus-visible { outline: 2px
 
 .bp-legendrow { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 2px; padding-top: 6px; border-top: 1px solid var(--line); }
 .bp-legendrow .bp-lg:first-child { margin-left: 0; }
+
+/* clearer arrows: under the blocks (never across code), quiet until you point at something */
+.bp-arrows { z-index: 0; }
+.bp-ed { opacity: .5; stroke-width: 1.5; transition: opacity .15s, stroke-width .15s; }
+.bp-ed.bp-missing, .bp-ed.bp-unplanned { opacity: .9; }
+.bp-ed.bp-dim { opacity: .07; }
+.bp-ed.bp-hot { opacity: 1; stroke-width: 2.8; stroke-dasharray: 9 7; animation: bp-flow .8s linear infinite; }
+.bp-map .bp-ed { stroke-width: 5; }
+.bp-map .bp-ed.bp-hot { stroke-width: 9; stroke-dasharray: 26 18; }
+@keyframes bp-flow { to { stroke-dashoffset: -16; } }
+@media (prefers-reduced-motion: reduce) { .bp-ed.bp-hot { animation: none; stroke-dasharray: none; } }
