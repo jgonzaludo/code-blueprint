@@ -17,8 +17,13 @@ function launch(cmd: string, args: string[]): Promise<boolean> {
 }
 
 // open a url in the default browser. skipped when there's nobody to look at it.
+// when Claude Code is the one running us, it has its own place to show the page (the browser pane
+// in the desktop app), so don't pop a tab in the user's own browser
+export const drivenByClaude = (env: NodeJS.ProcessEnv = process.env): boolean => !!(env.CLAUDECODE || env.CLAUDE_CODE_ENTRYPOINT);
+
 export function canOpenBrowser(env: NodeJS.ProcessEnv = process.env, platform = process.platform): boolean {
   if (env.CI) return false;
+  if (drivenByClaude(env)) return false;
   if (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) return false;
   return true;
 }

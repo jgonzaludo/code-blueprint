@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildFileTree, isTestPath, parseTree, type FileTree } from '@blueprint/core';
-import { canOpenBrowser, openBrowser } from './open.js';
+import { canOpenBrowser, drivenByClaude, openBrowser } from './open.js';
 import { defaultUiDir } from './paths.js';
 import { snapshotCommand } from './snapshot.js';
 import { checkCommand, planCommand } from './planCommands.js';
@@ -238,7 +238,9 @@ async function watchCommand(
   });
   io.out(`blueprint  watching ${root}\n`);
   io.out(`blueprint  ${srv.url}\n`);
-  if (!values['no-open'] && canOpenBrowser()) await openBrowser(srv.url);
+  if (!values['no-open'] && drivenByClaude()) {
+    io.out('blueprint  not opening your browser (started from Claude Code), use the url above or the browser pane\n');
+  } else if (!values['no-open'] && canOpenBrowser()) await openBrowser(srv.url);
 
   // run until ctrl-c
   await new Promise<void>((resolve) => {
