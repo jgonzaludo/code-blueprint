@@ -554,26 +554,49 @@ function item(mark: [string, string], label: string, small: string, go: string):
   return `<button class="bp-it" data-go="${esc(go)}"><span class="bp-m ${mark[1]}">${mark[0]}</span><span>${esc(label)}</span><small>${esc(small)}</small></button>`;
 }
 
-async function post(path: string, body: unknown): Promise<void> {
+// returns an error message, or null when it worked
+async function post(path: string, body: unknown): Promise<string | null> {
   try {
-    await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  } finally {
-    await load().catch(() => {});
+    const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.ok) return null;
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    return j.error ?? `the watcher said ${r.status}`;
+  } catch {
+    return 'could not reach the watcher';
   }
+}
+
+let reviewError = '';
+
+// the click shows its effect straight away, then the server confirms (or we put it back and say why)
+async function review(plan: PlanState, st: 'approved' | 'changes', note?: string): Promise<void> {
+  reviewError = '';
+  const before = plan.review;
+  plan.review = { state: st, note };
+  renderChanges();
+  const err = await post('/api/plan/review', { id: plan.id, state: st, note });
+  if (err) {
+    plan.review = before;
+    reviewError = err;
+    renderChanges();
+    return;
+  }
+  await load().catch(() => {});
 }
 
 // the review step lives inside the plan view. it only shows up once Claude has marked the plan ready,
 // so a plan nobody asked to review looks and works exactly as it did before.
 function reviewBlock(plan: PlanState): string {
   const r = plan.review;
-  if (r.state === 'drafting') return '';
+  const err = reviewError ? `<div class="bp-rec bp-bad"><b>That did not go through.</b> ${esc(reviewError)}</div>` : '';
+  if (r.state === 'drafting') return err;
   if (r.state === 'ready') {
-    return `<div class="bp-rec"><b>Ready for your review.</b> Claude marked this plan finished and is waiting for your go.` +
+    return err + `<div class="bp-rec"><b>Ready for your review.</b> Claude marked this plan finished and is waiting for your go.` +
       (isSnapshot ? '' : `<div class="bp-revbar"><button class="bp-btn bp-ok" id="bp-approve">Approve</button><button class="bp-btn" id="bp-changes-btn">Ask for changes</button></div>` +
         `<div class="bp-revnote" id="bp-revnote" hidden><input id="bp-note" placeholder="what should change?" maxlength="300"><button class="bp-btn" id="bp-send">Send</button></div>`) + `</div>`;
   }
-  if (r.state === 'approved') return `<div class="bp-rec bp-good"><b>Approved.</b> Claude can apply it now.</div>`;
-  return `<div class="bp-rec bp-bad"><b>Changes requested.</b>${r.note ? ` ${esc(r.note)}` : ''} Claude will revise the draft.</div>`;
+  if (r.state === 'approved') return err + `<div class="bp-rec bp-good"><b>Approved.</b> Claude can apply it now.</div>`;
+  return err + `<div class="bp-rec bp-bad"><b>Changes requested.</b>${r.note ? ` ${esc(r.note)}` : ''} Claude will revise the draft.</div>`;
 }
 
 function planPicker(): string {
@@ -590,14 +613,20 @@ function wireReview(el: HTMLElement): void {
   const pick = el.querySelector<HTMLSelectElement>('#bp-picker');
   if (pick) pick.onchange = () => { planChoice = pick.value; void load().catch(() => {}); };
   const ap = el.querySelector<HTMLElement>('#bp-approve');
-  if (ap) ap.onclick = () => void post('/api/plan/review', { id: plan.id, state: 'approved' });
+  if (ap) ap.onclick = () => { ap.textContent = 'Approving...'; (ap as HTMLButtonElement).disabled = true; void review(plan, 'approved'); };
   const ch = el.querySelector<HTMLElement>('#bp-changes-btn');
   const note = el.querySelector<HTMLElement>('#bp-revnote');
   if (ch && note) ch.onclick = () => { note.hidden = false; (note.querySelector('input') as HTMLInputElement).focus(); };
   const send = el.querySelector<HTMLElement>('#bp-send');
-  if (send) send.onclick = () => void post('/api/plan/review', { id: plan.id, state: 'changes', note: (el.querySelector('#bp-note') as HTMLInputElement).value });
+  if (send) send.onclick = () => { (send as HTMLButtonElement).disabled = true; void review(plan, 'changes', (el.querySelector('#bp-note') as HTMLInputElement).value); };
   const arch = el.querySelector<HTMLElement>('#bp-archive');
-  if (arch) arch.onclick = () => { planChoice = null; void post('/api/plan/archive', { id: plan.id }); };
+  if (arch) arch.onclick = async () => {
+    (arch as HTMLButtonElement).disabled = true;
+    const err = await post('/api/plan/archive', { id: plan.id });
+    if (err) { reviewError = err; renderChanges(); return; }
+    planChoice = null;
+    await load().catch(() => {});
+  };
 }
 
 function renderChanges(): void {
