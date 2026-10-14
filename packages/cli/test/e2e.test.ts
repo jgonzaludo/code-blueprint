@@ -195,26 +195,32 @@ run('plan view in a real browser', () => {
     expect(await page.locator('#bp-approve').count()).toBe(0);
     expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
 
+    // the watcher path for plans is covered elsewhere, so refresh explicitly. these steps flip
+    // state twice in quick succession and CI machines are slow, so don't race the fs events.
+    const wait = { timeout: 30_000 };
     setReview(root2, 'refund-support', 'ready');
-    await page.waitForSelector('#bp-approve', { timeout: 8000 });
+    await srv2.refresh();
+    await page.waitForSelector('#bp-approve', wait);
     expect(await page.locator('#bp-changes').innerText()).toContain('Ready for your review');
     await page.locator('#bp-approve').click();
-    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Approved.'), null, { timeout: 8000 });
+    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Approved.'), null, wait);
     expect(readPlan(root2, 'refund-support').plan.review?.state).toBe('approved');
 
     // and changes with a note
     setReview(root2, 'refund-support', 'ready');
-    await page.waitForSelector('#bp-changes-btn', { timeout: 8000 });
+    await srv2.refresh();
+    await page.waitForSelector('#bp-changes-btn', wait);
     await page.locator('#bp-changes-btn').click();
     await page.locator('#bp-note').fill('keep orders.ts as is');
     await page.locator('#bp-send').click();
-    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Changes requested.'), null, { timeout: 8000 });
+    await page.waitForFunction(() => document.getElementById('bp-changes')?.textContent?.includes('Changes requested.'), null, wait);
     expect(readPlan(root2, 'refund-support').plan.review).toMatchObject({ state: 'changes', note: 'keep orders.ts as is' });
     await page.screenshot({ path: path.join(outDir, 'plan-review.png') });
     // back to drafting so the next test sees the plain plan view
     setReview(root2, 'refund-support', 'drafting');
+    await srv2.refresh();
     await ctx.close();
-  });
+  }, 90_000);
 
   it('leads with the plan, then shows 9 of 10 once it is applied', async () => {
     if (!browser || !srv2) return;
