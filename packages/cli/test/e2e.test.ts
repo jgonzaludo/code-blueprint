@@ -91,7 +91,7 @@ run('map page in a real browser', () => {
     expect(await page.locator('#bp-lvl').textContent()).toBe('Project map');
     await page.screenshot({ path: path.join(outDir, 'level-1-map.png') });
 
-    await page.locator('.bp-file[data-f="src/orders.ts"]').dblclick();
+    await page.locator('.bp-file[data-f="src/orders.ts"]').dblclick({ position: { x: 24, y: 14 } });
     await page.waitForFunction(() => document.getElementById('bp-lvl')?.textContent !== 'Project map');
     await page.waitForTimeout(900);
     const lvl = await page.locator('#bp-lvl').textContent();
@@ -120,15 +120,18 @@ run('map page in a real browser', () => {
     const s = await open();
     if (!s) return;
     const { page } = s;
+    // fail on the step that is stuck, not on the whole test
+    page.setDefaultTimeout(10_000);
     // arrows are under the blocks, never over code
     const z = await page.evaluate(() => getComputedStyle(document.getElementById('bp-bsvg') as Element).zIndex);
     expect(z).toBe('0');
-    await page.locator('.bp-file[data-f="src/orders.ts"]').dblclick();
+    await page.locator('.bp-file[data-f="src/orders.ts"]').dblclick({ position: { x: 24, y: 14 } });
     await page.waitForFunction(() => document.getElementById('bp-lvl')?.textContent !== 'Project map');
-    await page.waitForSelector('.bp-ed');
+    // block arrows are built once you are at code zoom
+    await page.waitForSelector('#bp-bsvg .bp-ed', { state: 'attached' });
     expect(await page.locator('#bp-bsvg .bp-ed.bp-hot').count()).toBe(0);
     await page.locator('.bp-blk[data-id="src/orders.ts::processOrder"] .bp-bh').hover();
-    await page.waitForSelector('#bp-bsvg .bp-ed.bp-hot');
+    await page.waitForSelector('#bp-bsvg .bp-ed.bp-hot', { state: 'attached' });
     const hot = await page.locator('#bp-bsvg .bp-ed.bp-hot').count();
     const dim = await page.locator('#bp-bsvg .bp-ed.bp-dim').count();
     expect(hot).toBeGreaterThan(0);
