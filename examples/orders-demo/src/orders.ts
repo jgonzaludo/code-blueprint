@@ -1,7 +1,7 @@
 import { roundMoney } from "./utils/money";
 import { recordAudit } from "./audit/log";
 
-type OrderStatus = "pending" | "paid" | "shipped" | "cancelled" | "refunded";
+type OrderStatus = "pending" | "paid" | "shipped" | "cancelled";
 
 interface Product {
   id: string;
@@ -44,12 +44,6 @@ class Inventory {
 
     product.stock -= quantity;
   }
-
-  release(productId: string, quantity: number): void {
-    const product = this.getProduct(productId);
-
-    product.stock += quantity;
-  }
 }
 
 function calculateOrderTotal(
@@ -71,15 +65,6 @@ function reserveOrderStock(
   }
 }
 
-function releaseOrderStock(
-  order: Order,
-  inventory: Inventory
-): void {
-  for (const item of order.items) {
-    inventory.release(item.productId, item.quantity);
-  }
-}
-
 function processOrder(
   order: Order,
   inventory: Inventory
@@ -94,22 +79,6 @@ function processOrder(
 
   order.status = "paid";
   recordAudit("order.paid", order.id);
-
-  return order;
-}
-
-function refundOrder(
-  order: Order,
-  inventory: Inventory
-): Order {
-  if (order.status !== "paid") {
-    throw new Error("Only paid orders can be refunded");
-  }
-
-  releaseOrderStock(order, inventory);
-
-  order.status = "refunded";
-  recordAudit("order.refunded", order.id);
 
   return order;
 }
