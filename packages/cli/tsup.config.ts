@@ -22,6 +22,8 @@ export default defineConfig({
     if (!fs.existsSync(src)) throw new Error('packages/ui/dist is missing, run `pnpm --filter @blueprint/ui build` first');
     fs.rmSync(dest, { recursive: true, force: true });
     fs.cpSync(src, dest, { recursive: true });
+    // bin must be executable so the built path can be run directly, without `node` in front
+    fs.chmodSync(path.resolve('dist/cli.js'), 0o755);
     // the claude code skill ships next to the cli so `blueprint skill install` can copy it
     const skillSrc = path.resolve('../../skill/claude-code/SKILL.md');
     fs.mkdirSync(path.resolve('dist/skill'), { recursive: true });
