@@ -7,6 +7,7 @@ import { run } from '../src/run.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const skill = fs.readFileSync(path.join(repo, 'skill/claude-code/SKILL.md'), 'utf8');
+const appSkill = fs.readFileSync(path.join(repo, 'skill/claude-app/SKILL.md'), 'utf8');
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -46,6 +47,37 @@ describe('the skill file', () => {
 
   it('has no em dashes', () => {
     expect(skill).not.toContain('—');
+  });
+});
+
+describe('the Claude app skill', () => {
+  it('has valid frontmatter and says what to do with no code', () => {
+    const m = /^---\nname: (.+)\ndescription: (.+)\n---\n/.exec(appSkill);
+    expect(m?.[1]).toBe('blueprint-app');
+    expect(appSkill).toMatch(/No code: say so/);
+    expect(appSkill).toMatch(/same\*\* artifact URL/);
+    expect(appSkill).not.toContain('\u2014');
+  });
+
+  it('only uses subcommands the cli has', async () => {
+    const help = (await bp(['--help'], repo)).out;
+    const used = new Set<string>();
+    for (const m of appSkill.matchAll(/`(?:blueprint|npx code-blueprint)\s+([a-z]+)(?:\s+([a-z]+))?/g)) {
+      used.add(m[1] as string);
+      if (m[1] === 'plan' && m[2]) used.add(`plan ${m[2]}`);
+    }
+    expect(used.has('snapshot')).toBe(true);
+    for (const u of used) {
+      const [cmd, sub] = u.split(' ');
+      expect(help, `app skill uses '${u}'`).toContain(sub ? `blueprint ${cmd} ${sub}` : `blueprint ${cmd}`);
+    }
+  });
+
+  it('prints with --app and is not installable from here', async () => {
+    const p = await bp(['skill', 'print', '--app'], repo);
+    expect(p.out).toBe(appSkill);
+    const i = await bp(['skill', 'install', '--app'], repo);
+    expect(i.code).toBe(2);
   });
 });
 

@@ -23,5 +23,6 @@ export default defineConfig({
     const skillSrc = path.resolve('../../skill/claude-code/SKILL.md');
     fs.mkdirSync(path.resolve('dist/skill'), { recursive: true });
     fs.copyFileSync(skillSrc, path.resolve('dist/skill/SKILL.md'));
+    fs.copyFileSync(path.resolve('../../skill/claude-app/SKILL.md'), path.resolve('dist/skill/claude-app.md'));
   },
 });
