@@ -122,7 +122,6 @@ describe.skipIf(!ready)('blueprint snapshot', () => {
     await page.waitForSelector('.bp-blk');
 
     expect(await page.locator('#bp-live').textContent()).toMatch(/^snapshot/);
-    expect(await page.locator('#bp-relayout').isHidden()).toBe(true);
     expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
     expect(await page.locator('.bp-band').textContent()).toBe('New files, above the map');
     await page.locator('#bp-modes button[data-m="applied"]').click();

@@ -188,39 +188,34 @@ run('plan view in a real browser', () => {
     if (root2) fs.rmSync(root2, { recursive: true, force: true });
   });
 
-  it('shows the review bar inside the plan view only once Claude marked it ready', async () => {
+  it('shows the review state as text only, there is nothing to click', async () => {
     if (!browser || !srv2) return;
-    const { setReview, readPlan } = await import('../src/plans.js');
+    const { setReview } = await import('../src/plans.js');
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await ctx.newPage();
     await page.goto(srv2.url);
     await page.waitForSelector('.bp-blk');
-    // a plan nobody marked ready looks exactly like before: no review controls
-    expect(await page.locator('#bp-approve').count()).toBe(0);
     expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
+    // the window never has buttons that change anything
+    expect(await page.locator('#bp-card button').count()).toBe(0);
+    expect(await page.locator('#bp-relayout').count()).toBe(0);
 
-    // the watcher path for plans is covered elsewhere, so refresh explicitly. these steps flip
-    // state twice in quick succession and CI machines are slow, so don't race the fs events.
     const wait = { timeout: 30_000 };
     setReview(root2, 'refund-support', 'ready');
     await srv2.refresh();
-    await page.waitForSelector('#bp-approve', wait);
-    expect(await page.locator('#bp-card').innerText()).toContain('Ready for your review');
-    await page.locator('#bp-approve').click();
-    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('Approved'), null, wait);
-    expect(readPlan(root2, 'refund-support').plan.review?.state).toBe('approved');
+    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('Ready for your review'), null, wait);
+    expect(await page.locator('#bp-card').innerText()).toContain('Say go in chat');
+    expect(await page.locator('#bp-card button').count()).toBe(0);
 
-    // and changes with a note
-    setReview(root2, 'refund-support', 'ready');
+    setReview(root2, 'refund-support', 'approved');
     await srv2.refresh();
-    await page.waitForSelector('#bp-changes-btn', wait);
-    await page.locator('#bp-changes-btn').click();
-    await page.locator('#bp-note').fill('keep orders.ts as is');
-    await page.locator('#bp-send').click();
-    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('Changes requested'), null, wait);
-    expect(readPlan(root2, 'refund-support').plan.review).toMatchObject({ state: 'changes', note: 'keep orders.ts as is' });
+    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('Approved'), null, wait);
+
+    setReview(root2, 'refund-support', 'changes', 'keep orders.ts as is');
+    await srv2.refresh();
+    await page.waitForFunction(() => document.getElementById('bp-card')?.textContent?.includes('keep orders.ts as is'), null, wait);
     await page.screenshot({ path: path.join(outDir, 'plan-review.png') });
-    // back to drafting so the next test sees the plain plan view
+
     setReview(root2, 'refund-support', 'drafting');
     await srv2.refresh();
     await ctx.close();

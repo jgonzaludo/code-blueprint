@@ -6,9 +6,7 @@ import type { Graph } from '@blueprint/core';
 import { headSha } from './git.js';
 import { GraphBuilder } from './graph.js';
 import { ensureStateDir } from './layout.js';
-import { archivePlan, checkId, resolveId, setReview, PlanError } from './plans.js';
 import { computeState, type MapState } from './state.js';
-import { openInEditor } from './open.js';
 
 export interface ServerOptions {
   root: string;
@@ -19,7 +17,6 @@ export interface ServerOptions {
   relayout?: boolean;
   watch?: boolean;
   log?: (line: string) => void;
-  openEditor?: (abs: string, line: number) => Promise<boolean>;
 }
 
 export interface RunningServer {
@@ -119,22 +116,6 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   };
   const json = (res: http.ServerResponse, code: number, v: unknown) => send(res, code, JSON.stringify(v), MIME['.json']);
 
-  function readBody(req: http.IncomingMessage): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let n = 0;
-      const chunks: Buffer[] = [];
-      req.on('data', (c: Buffer) => {
-        n += c.length;
-        if (n > 16 * 1024) {
-          reject(new Error('body too large'));
-          req.destroy();
-        } else chunks.push(c);
-      });
-      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-      req.on('error', reject);
-    });
-  }
-
   const server = http.createServer((req, res) => {
     void (async () => {
       // dns rebinding: a page on another origin can point its own hostname at 127.0.0.1,
@@ -145,12 +126,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       if (!authed(t)) {
         return send(res, 401, 'open the url blueprint printed, it carries a token\n');
       }
-      if (req.method === 'POST') {
-        const origin = req.headers.origin;
-        if (origin !== undefined && origin !== `http://127.0.0.1:${boundPort}` && origin !== `http://localhost:${boundPort}`) {
-          return send(res, 403, 'cross-origin post');
-        }
-      }
+      // the window is read only. anything that changes state goes through the cli, from chat or a terminal.
+      if (req.method !== 'GET') return json(res, 405, { error: 'read only' });
       // first visit with ?t= swaps the token for a cookie, so the api and sse need no query string
       const cookie = { 'set-cookie': `bp_t=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/` };
 
@@ -164,30 +141,6 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
           return json(res, 200, { rev: state.rev, ...other });
         }
         return json(res, 200, state);
-      }
-      // the review buttons on the page. same effect as `blueprint plan approve|changes` and `plan archive`.
-      if (req.method === 'POST' && (p === '/api/plan/review' || p === '/api/plan/archive')) {
-        let body: { id?: unknown; state?: unknown; note?: unknown };
-        try {
-          body = JSON.parse(await readBody(req)) as typeof body;
-        } catch {
-          return json(res, 400, { error: 'bad json' });
-        }
-        try {
-          if (typeof body.id !== 'string') return json(res, 400, { error: 'id required' });
-          checkId(body.id);
-          resolveId(root, body.id);
-          if (p === '/api/plan/archive') archivePlan(root, body.id);
-          else {
-            if (body.state !== 'approved' && body.state !== 'changes') return json(res, 400, { error: 'state must be approved or changes' });
-            setReview(root, body.id, body.state, typeof body.note === 'string' ? body.note : undefined);
-          }
-        } catch (e) {
-          if (e instanceof PlanError) return json(res, 400, { error: e.message });
-          throw e;
-        }
-        await refresh();
-        return json(res, 200, { rev: state?.rev ?? 0 });
       }
       if (req.method === 'GET' && p === '/api/status') {
         return json(res, 200, {
@@ -210,28 +163,6 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
           clients.delete(res);
         });
         return;
-      }
-      if (req.method === 'POST' && p === '/api/open') {
-        let body: { file?: unknown; line?: unknown };
-        try {
-          body = JSON.parse(await readBody(req)) as typeof body;
-        } catch {
-          return json(res, 400, { error: 'bad json' });
-        }
-        if (typeof body.file !== 'string') return json(res, 400, { error: 'file required' });
-        const abs = path.resolve(root, body.file);
-        // never open (or even stat) anything outside the project
-        if (abs !== root && !abs.startsWith(root + path.sep)) return json(res, 400, { error: 'outside the project' });
-        if (!fs.existsSync(abs)) return json(res, 404, { error: 'no such file' });
-        const line = Number.isInteger(body.line) && (body.line as number) > 0 ? (body.line as number) : 1;
-        const ok = await (opts.openEditor ?? openInEditor)(abs, line);
-        return ok ? json(res, 200, { ok: true }) : json(res, 501, { error: 'no editor found. install the code command or set $EDITOR' });
-      }
-      if (req.method === 'POST' && p === '/api/relayout') {
-        wantRelayout = true;
-        lastSig = ''; // force a push even when the graph is identical
-        await refresh();
-        return json(res, 200, { rev: state?.rev ?? 0 });
       }
       if (req.method === 'GET') {
         // static ui. resolve inside uiDir only.

@@ -79,7 +79,8 @@ describe('server security', () => {
   it('rejects cross-origin posts', async () => {
     const { srv } = await boot();
     const r = await raw(srv.port, '/api/open', `127.0.0.1:${srv.port}`, { 'x-blueprint-token': srv.token, origin: 'https://evil.example.com', 'content-type': 'application/json' }, 'POST', '{"file":"src/a.ts"}');
-    expect(r.status).toBe(403);
+    // posts are refused outright now, whatever the origin
+    expect(r.status).toBe(405);
   });
 
   it('never serves files outside the ui dir', async () => {
@@ -130,16 +131,6 @@ describe('server api', () => {
     expect(after['src/c.ts']).toBeDefined();
   });
 
-  it('opens the editor for a file in the project and refuses paths outside it', async () => {
-    const calls: Array<[string, number]> = [];
-    const { srv, root, base } = await boot({ openEditor: async (abs, line) => (calls.push([abs, line]), true) });
-    const post = (b: unknown) =>
-      fetch(`${base}/api/open`, { method: 'POST', headers: { 'x-blueprint-token': srv.token, 'content-type': 'application/json' }, body: JSON.stringify(b) });
-    expect((await post({ file: 'src/a.ts', line: 3 })).status).toBe(200);
-    expect(calls).toEqual([[path.join(root, 'src/a.ts'), 3]]);
-    expect((await post({ file: '../../etc/passwd' })).status).toBe(400);
-    expect((await post({ file: 'src/missing.ts' })).status).toBe(404);
-  });
 });
 
 describe('live updates', () => {
@@ -221,56 +212,44 @@ describe('plans over the api', () => {
   });
 });
 
-describe('plan review over the api', () => {
-  async function withPlan() {
+describe('the window is read only', () => {
+  it('refuses every method but GET, even with a valid token and a same-origin request', async () => {
+    const { srv, base } = await boot();
+    for (const [method, p] of [
+      ['POST', '/api/plan/review'],
+      ['POST', '/api/plan/archive'],
+      ['POST', '/api/open'],
+      ['POST', '/api/relayout'],
+      ['PUT', '/api/state'],
+      ['DELETE', '/api/state'],
+    ] as const) {
+      const r = await fetch(`${base}${p}`, {
+        method,
+        headers: { 'x-blueprint-token': srv.token, 'content-type': 'application/json', origin: base },
+        body: method === 'POST' || method === 'PUT' ? JSON.stringify({ id: 'x', state: 'approved' }) : undefined,
+      });
+      expect(r.status, `${method} ${p}`).toBe(405);
+    }
+  });
+
+  it('still needs the token before it will say anything', async () => {
+    const { base } = await boot();
+    expect((await fetch(`${base}/api/plan/review`, { method: 'POST' })).status).toBe(401);
+  });
+
+  it('shows a review state that was set from the cli', async () => {
     const { srv, root, base } = await boot();
     const { baselineOf, parseTree } = await import('@blueprint/core');
     const { addDraft, createPlan, setReview } = await import('../src/plans.js');
     createPlan(root, 'extra', 'extra fn', baselineOf(parseTree(root, { diagnostics: false })));
     addDraft(root, 'extra', 'src/extra.ts', "import { b } from './b';\nexport function extra() {\n  return b();\n}\n");
+    setReview(root, 'extra', 'ready');
     await srv.refresh();
-    const post = (p: string, b: unknown, extra: Record<string, string> = {}) =>
-      fetch(`${base}${p}`, { method: 'POST', headers: { 'x-blueprint-token': srv.token, 'content-type': 'application/json', ...extra }, body: JSON.stringify(b) });
-    const get = async () => (await (await fetch(`${base}/api/state?t=${srv.token}`)).json()) as { plan: { review: { state: string; note?: string } } | null; plans: Array<{ review: string }> };
-    return { srv, root, base, post, get, setReview };
-  }
-
-  it('shows drafting until marked ready, and approving needs ready first', async () => {
-    const { post, get, root, setReview } = await withPlan();
-    expect((await get()).plan?.review.state).toBe('drafting');
-    expect((await post('/api/plan/review', { id: 'extra', state: 'approved' })).status).toBe(400);
-    setReview(root, 'extra', 'ready');
-    const r = await post('/api/plan/review', { id: 'extra', state: 'approved' });
-    expect(r.status).toBe(200);
-    expect((await get()).plan?.review.state).toBe('approved');
-  });
-
-  it('records a request for changes with its note', async () => {
-    const { post, get, root, setReview } = await withPlan();
-    setReview(root, 'extra', 'ready');
-    await post('/api/plan/review', { id: 'extra', state: 'changes', note: 'leave b alone' });
-    const s = await get();
-    expect(s.plan?.review).toMatchObject({ state: 'changes', note: 'leave b alone' });
-  });
-
-  it('rejects bad ids, bad states and cross-origin posts', async () => {
-    const { post, srv } = await withPlan();
-    expect((await post('/api/plan/review', { id: '../x', state: 'approved' })).status).toBe(400);
-    expect((await post('/api/plan/review', { id: 'extra', state: 'applied' })).status).toBe(400);
-    const r = await fetch(`http://127.0.0.1:${srv.port}/api/plan/review`, {
-      method: 'POST',
-      headers: { 'x-blueprint-token': srv.token, origin: 'https://evil.example.com', 'content-type': 'application/json' },
-      body: JSON.stringify({ id: 'extra', state: 'approved' }),
-    });
-    expect(r.status).toBe(403);
-  });
-
-  it('archives a plan so it stops being listed', async () => {
-    const { post, get, root } = await withPlan();
-    expect((await post('/api/plan/archive', { id: 'extra' })).status).toBe(200);
-    const s = await get();
-    expect(s.plan).toBeNull();
-    expect(s.plans).toEqual([]);
-    expect(fs.existsSync(path.join(root, '.blueprint/archive/extra/plan.json'))).toBe(true);
+    const s = (await (await fetch(`${base}/api/state?t=${srv.token}`)).json()) as { plan: { review: { state: string } } };
+    expect(s.plan.review.state).toBe('ready');
+    setReview(root, 'extra', 'changes', 'leave b alone');
+    await srv.refresh();
+    const s2 = (await (await fetch(`${base}/api/state?t=${srv.token}`)).json()) as { plan: { review: { state: string; note?: string } } };
+    expect(s2.plan.review).toMatchObject({ state: 'changes', note: 'leave b alone' });
   });
 });

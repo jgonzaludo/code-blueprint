@@ -33,14 +33,3 @@ export async function openBrowser(url: string, platform = process.platform): Pro
   if (platform === 'win32') return launch('cmd', ['/c', 'start', '""', url]);
   return launch('xdg-open', [url]);
 }
-
-// jump to a file and line in the user's editor: `code -g file:line`, else $VISUAL / $EDITOR
-export async function openInEditor(abs: string, line: number, env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
-  if (await launch('code', ['-g', `${abs}:${line}`])) return true;
-  const ed = env.VISUAL || env.EDITOR;
-  if (ed) {
-    const [cmd, ...rest] = ed.split(/\s+/);
-    if (cmd) return launch(cmd, [...rest, `+${line}`, abs]);
-  }
-  return false;
-}

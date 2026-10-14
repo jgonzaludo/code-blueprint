@@ -26,7 +26,7 @@ pnpm demo
 It makes a throwaway project, drafts the refund feature as a plan, marks it ready, and opens the map. Then:
 
 - Plan view: new files in a dashed band on top, `orders.ts` badged, dashed arrows. Zoom into `orders.ts` and find the one-line `OrderStatus` change and the new `restock` method.
-- Click **Approve**. The bar changes to "Approved".
+- The card says "Ready for your review". The window has no buttons: you answer in the terminal with `plan approve` (or `plan changes --note "..."`), and the card follows.
 - In a second terminal, run the two commands the demo printed (`plan apply`, then `check`).
 - Click **After applying**. Expect **9 of 10 proposed arrows confirmed**, with `refundHandler to recordAudit` named as not in the code.
 
@@ -64,7 +64,7 @@ Start a new Claude Code session in that project and try, one at a time:
 1. "What does `src/<some file>` do?" Expect Claude to run `blueprint print` and cite `path:line`, without a plan.
 2. "Who calls `<some function>`?"
 3. In **plan mode**: "Add `<a small feature touching 2 or 3 files>`". Expect it to start the map, add draft files, mark the plan ready, summarize, and stop. It should not edit your files.
-4. Approve with the button, or say "go". Expect it to apply, run `check`, and report "N of M confirmed", listing anything missing or unplanned.
+4. Say "go". Expect it to run `plan approve` (the card says Approved), apply, run `check`, and report "N of M confirmed", listing anything missing or unplanned.
 5. In **auto / accept edits** mode: "Add `<something small>`". Expect no plan: it just edits, and the map changes live.
 
 What to note: did it ask before planning something big? Did it say "confirmed" about anything the check didn't confirm? Did it invent a call that `print` never showed?
@@ -83,7 +83,7 @@ blueprint snapshot --out map.html          # newest plan plus one hop
 blueprint snapshot --all --out map.html
 ```
 
-Open `map.html` straight from disk, with the network off. It should look the same, say "snapshot" instead of "watching", and have no re-layout or open-in-editor buttons.
+Open `map.html` straight from disk, with the network off. It should look the same, say "snapshot" instead of "watching", and have no buttons that change anything (the window is read only everywhere).
 
 ## 5. Try to break it
 
