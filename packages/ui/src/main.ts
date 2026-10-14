@@ -18,6 +18,7 @@ interface PlanState {
   title: string;
   state: 'proposed' | 'applied';
   review: { state: ReviewState; note?: string };
+  progress: { blocks: number; landed: number };
   planGraph: Graph;
   appliedGraph: Graph;
   positions: Positions;
@@ -76,7 +77,6 @@ type Scope = 'auto' | 'focus' | 'all';
 let scope: Scope = 'auto';
 const FOCUS_ABOVE = 60;
 let planChoice: string | null = null; // picker choice, null means the newest plan
-let modeChosen = false; // once you pick a view, a new push doesn't switch it under you
 
 // the graph and positions for the active view
 function view(): { graph: Graph; positions: Positions } {
@@ -311,8 +311,11 @@ function buildWorld(prevSigs: Map<string, string> | null): void {
       const y = p.y + bx.y;
       blockPos.set(b.id, { x, y, w: bx.w, h: bx.h, file: f, shown: bx.shown, el: null, filled: false });
       const tag = tagFor(b.status);
-      if (tag && b.status === 'new' && mode === 'plan') tag[1] = 'new (proposed)';
-      html += `<div class="bp-blk bp-k-${b.kind} bp-s-${b.status}" tabindex="0" data-id="${esc(b.id)}" style="left:${x}px;top:${y}px;width:${bx.w}px;height:${bx.h}px">` +
+      if (tag && b.status === 'new' && mode === 'plan') tag[1] = b.sketch && !b.landed ? 'sketch' : b.landed ? 'written' : 'new (proposed)';
+      // in the plan view a block is dashed until the real code for it exists, then it turns solid
+      const phase = mode === 'plan' && b.status !== 'same' ? (b.landed ? ' bp-landed' : ' bp-pending') : '';
+      const popped = phase === ' bp-landed' && !wasLanded.has(b.id) && wasLanded.size >= 0 && builtOnce ? ' bp-pop' : '';
+      html += `<div class="bp-blk bp-k-${b.kind} bp-s-${b.status}${phase}${popped}${b.sketch ? ' bp-sk' : ''}" tabindex="0" data-id="${esc(b.id)}" style="left:${x}px;top:${y}px;width:${bx.w}px;height:${bx.h}px">` +
         `<div class="bp-bh"><span class="bp-bk">${b.kind}</span><span class="bp-bn">${esc(b.name)}</span>${tag ? `<span class="bp-tag ${tag[0]}">${tag[1]}</span>` : ''}</div><div class="bp-bb"></div></div>`;
     }
   }
@@ -326,6 +329,9 @@ function buildWorld(prevSigs: Map<string, string> | null): void {
   }
   html += '<svg class="bp-arrows bp-fedges" id="bp-fsvg" width="1" height="1"></svg><svg class="bp-arrows bp-bedges" id="bp-bsvg" width="1" height="1"></svg>';
   world.innerHTML = html;
+  wasLanded.clear();
+  for (const [id, b] of Object.entries(g.blocks)) if (mode === 'plan' && b.landed) wasLanded.add(id);
+  builtOnce = true;
   world.querySelectorAll<HTMLElement>('.bp-blk').forEach((el) => {
     const p = blockPos.get(el.dataset.id as string);
     if (p) p.el = el;
@@ -424,7 +430,8 @@ function drawBlockEdges(): void {
     // claims are dashed with a hollow head so nobody reads them as parsed.
     let k = gone ? 'bp-gone' : e.status === 'new' ? 'bp-new' : '';
     let mk = gone ? 'bp-mg' : e.status === 'new' ? 'bp-mn' : 'bp-mb';
-    if (mode === 'plan' && e.source === 'claim') { k = 'bp-claim'; mk = 'bp-mh'; }
+    if (mode === 'plan' && e.landed && e.status !== 'del') { k = 'bp-new bp-confirmed'; mk = 'bp-mn'; }
+    else if (mode === 'plan' && e.source === 'claim') { k = 'bp-claim'; mk = 'bp-mh'; }
     else if (mode === 'plan' && e.status === 'new') { k = 'bp-new bp-proposed'; }
     if (mode === 'applied') {
       if (e.check === 'missing') { k = 'bp-missing'; mk = 'bp-mg'; }
@@ -482,6 +489,11 @@ function drawFileEdges(): void {
 // hovering a block lights up its arrows, selecting one also dims everything else. the lit arrows
 // animate along their direction so you can see which way the call goes.
 let hover: string | null = null;
+// at map zoom a file card is the thing you point at, so its file arrows light up
+let hoverFile: string | null = null;
+// which blocks were already real on the last draw, so a block that just became real can pop
+const wasLanded = new Set<string>();
+let builtOnce = false;
 
 function applySelection(): void {
   const g = state ? view().graph : undefined;
@@ -498,7 +510,7 @@ function applySelection(): void {
     p.el?.classList.toggle('bp-dim', !!sel && !related.has(id));
   }
   const focus = sel ?? hover;
-  const focusFile = focus ? blockPos.get(focus)?.file : null;
+  const focusFile = focus ? blockPos.get(focus)?.file : cam.s < 0.5 ? hoverFile : null;
   world.querySelectorAll('#bp-bsvg .bp-ed').forEach((el) => {
     const touches = !!focus && (el.getAttribute('data-from') === focus || el.getAttribute('data-to') === focus);
     el.classList.toggle('bp-hot', touches);
@@ -528,6 +540,14 @@ const lineRange = (b: Block): string => {
   return ns.length ? `${Math.min(...ns)}-${Math.max(...ns)}` : String(firstLineOf(b));
 };
 
+// vscode://file/<path>:<line> is handled by VS Code itself. a link, so the page never has to do anything.
+function vscodeUrl(file?: string, line?: number): string | null {
+  const root = state?.graph.meta?.root;
+  if (!root) return null;
+  const abs = file ? `${root.replace(/\/$/, '')}/${file}` : root;
+  return `vscode://file${encodeURI(abs)}${file && line ? `:${line}` : ''}`;
+}
+
 function inspect(): void {
   const el = $('bp-insp');
   if (!sel || !state) {
@@ -554,6 +574,7 @@ function inspect(): void {
   el.innerHTML =
     `<div class="bp-ih"><span class="bp-nm">${esc(b.name)}</span>${st}<button class="bp-x" id="bp-insp-x" aria-label="Close">x</button></div>` +
     `<div class="bp-loc">${esc(b.file)} : ${lineRange(b)}</div>` +
+    (vscodeUrl(b.file, firstLineOf(b)) ? `<a class="bp-btn bp-vs" href="${esc(vscodeUrl(b.file, firstLineOf(b)) as string)}">Open in VS Code</a>` : '') +
     (grp('Used by', by, 'by') + grp('Uses', uses, 'uses') || '<div class="bp-none">Nothing calls this and it calls nothing here.</div>');
   el.querySelectorAll<HTMLElement>('[data-go]').forEach((c) => (c.onclick = () => goBlock(c.dataset.go as string)));
   $('bp-insp-x').onclick = () => select(null);
@@ -584,12 +605,16 @@ function renderChanges(): void {
     const r = plan.review;
     const status =
       r.state === 'ready' ? 'Ready for your review. Say go in chat, or tell Claude what to change.'
-      : r.state === 'approved' ? 'Approved'
+      : r.state === 'approved' ? 'Approved. Claude is writing the code.'
       : r.state === 'changes' ? `Changes requested${r.note ? `: ${esc(r.note)}` : ''}`
       : 'Proposed';
     const cls = r.state === 'approved' ? ' bp-good' : r.state === 'changes' ? ' bp-bad' : '';
     h += `<div class="bp-cardhead${cls}"><b>${esc(plan.title)}</b><span>${status}</span></div>`;
-    h += '<div class="bp-legendrow"><span class="bp-lg bp-lg-solid"></span>in the code <span class="bp-lg bp-lg-dash"></span>proposed <span class="bp-lg bp-lg-hollow"></span>claim</div>';
+    if (plan.progress.blocks > 0) {
+      const pct = Math.round((plan.progress.landed / plan.progress.blocks) * 100);
+      h += `<div class="bp-prog"><div class="bp-bar"><i style="width:${pct}%"></i></div><span>${plan.progress.landed} of ${plan.progress.blocks} blocks written</span></div>`;
+    }
+    h += '<div class="bp-legendrow"><span class="bp-li"><i class="bp-lg bp-lg-solid"></i>in the code</span><span class="bp-li"><i class="bp-lg bp-lg-dash"></i>proposed</span><span class="bp-li"><i class="bp-lg bp-lg-hollow"></i>claim</span></div>';
   } else if (plan && mode === 'applied') {
     const c = plan.check;
     const bad = c.edges.filter((e) => e.check !== 'confirmed');
@@ -602,7 +627,7 @@ function renderChanges(): void {
       h += '<ul class="bp-probs">' + shown.map((e) => `<li><span class="${e.check === 'missing' ? 'bp-miss' : 'bp-unpl'}">${e.check === 'missing' ? 'not in the code' : 'unplanned'}</span> ${esc(label(e))}</li>`).join('') +
         (bad.length > 3 ? `<li class="bp-none">and ${bad.length - 3} more, ask Claude for the full list</li>` : '') + '</ul>';
     }
-    h += '<div class="bp-legendrow"><span class="bp-lg bp-lg-conf"></span>confirmed <span class="bp-lg bp-lg-miss"></span>not in the code <span class="bp-lg bp-lg-unpl"></span>unplanned</div>';
+    h += '<div class="bp-legendrow"><span class="bp-li"><i class="bp-lg bp-lg-conf"></i>confirmed</span><span class="bp-li"><i class="bp-lg bp-lg-miss"></i>not in the code</span><span class="bp-li"><i class="bp-lg bp-lg-unpl"></i>unplanned</span></div>';
   }
   // more than one plan: a picker. otherwise nothing extra
   if (plan && mode !== 'current') h += planPicker();
@@ -616,6 +641,9 @@ function renderMeta(): void {
   const g = state.graph;
   const m = g.meta;
   const v = view().graph;
+  const vs = document.getElementById('bp-vscode') as HTMLAnchorElement | null;
+  const root = vscodeUrl();
+  if (vs && root) vs.href = root;
   // the counts live in chat. the window only warns about things that make the map less trustworthy.
   $('bp-meta').textContent = m?.typeErrors ? `${m.typeErrors} type errors, some arrows may be missing` : '';
   ($('bp-empty') as HTMLElement).hidden = Object.keys(g.fstat).length > 0 || !!state.plan;
@@ -637,12 +665,11 @@ function renderMeta(): void {
   $('bp-planname').hidden = true;
 }
 
-function setMode(m: Mode, chosen = true): void {
+function setMode(m: Mode): void {
   if (!state) return;
   if (m !== 'current' && !state.plan) m = 'current';
   if (m === mode) return;
   mode = m;
-  if (chosen) modeChosen = true;
   if (sel && !view().graph.blocks[sel]) sel = null;
   buildWorld(null);
   renderMeta();
@@ -676,18 +703,18 @@ world.addEventListener('keydown', (e) => {
 });
 world.addEventListener('mouseover', (e) => {
   const t = e.target as HTMLElement;
-  const b = t.closest<HTMLElement>('.bp-blk');
-  const f = t.closest<HTMLElement>('.bp-file');
-  // a file card stands in for its first block at map zoom, so file arrows light up too
-  const id = b?.dataset.id ?? (f ? ([...blockPos].find(([, p]) => p.file === f.dataset.f)?.[0] ?? null) : null);
-  if (id !== hover) {
+  const id = t.closest<HTMLElement>('.bp-blk')?.dataset.id ?? null;
+  const file = t.closest<HTMLElement>('.bp-file')?.dataset.f ?? (id ? (blockPos.get(id)?.file ?? null) : null);
+  if (id !== hover || file !== hoverFile) {
     hover = id;
+    hoverFile = file;
     applySelection();
   }
 });
 world.addEventListener('mouseleave', () => {
-  if (hover !== null) {
+  if (hover !== null || hoverFile !== null) {
     hover = null;
+    hoverFile = null;
     applySelection();
   }
 });
@@ -716,10 +743,17 @@ async function load(): Promise<void> {
   const prev = state;
   const prevSigs = prev ? new Map(Object.entries(prev.graph.blocks).map(([id, b]) => [id, sigOf(b)])) : null;
   state = next;
-  if (!state.plan) mode = 'current';
-  else if (!modeChosen && (!prev || !prev.plan || prev.plan.id !== state.plan.id)) {
-    // a plan just showed up: lead with it, applied plans lead with the check
+  const modeBefore = mode;
+  const was = prev?.plan ?? null;
+  if (!state.plan) {
+    // nothing pending: back to the plain map, and the plan tabs go away
+    mode = 'current';
+  } else if (!was || was.id !== state.plan.id) {
+    // a new plan: show its blocks right away, whatever you were looking at
     mode = state.plan.state === 'applied' ? 'applied' : 'plan';
+  } else if (was.review.state !== 'approved' && state.plan.review.state === 'approved') {
+    // accepted: go to the proposed changes and watch them become real
+    mode = 'plan';
   }
   buildWorld(prevSigs);
   renderMeta();
@@ -728,6 +762,9 @@ async function load(): Promise<void> {
   if (first) {
     first = false;
     fitAll(0);
+  } else if (modeBefore !== mode && !touched) {
+    // the band of new files comes and goes with the plan, so frame the map again
+    fitAll(400);
   }
 }
 
@@ -759,26 +796,29 @@ setInterval(() => {
 }, 250);
 
 /* theme */
-function setTheme(t: 'light' | 'dark' | null): void {
-  if (t) document.documentElement.dataset.theme = t;
-  else delete document.documentElement.dataset.theme;
+type Theme = 'auto' | 'light' | 'dark';
+function setTheme(t: Theme): void {
+  // auto leaves the page to follow the app's own light or dark setting
+  if (t === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
   try {
-    if (t) localStorage.setItem('bp-theme', t);
-    else localStorage.removeItem('bp-theme');
+    if (t === 'auto') localStorage.removeItem('bp-theme');
+    else localStorage.setItem('bp-theme', t);
   } catch {
-    // storage can be blocked, the theme just won't stick
+    // storage can be blocked, the choice just won't stick
   }
 }
+const themeSel = $('bp-theme') as HTMLSelectElement;
+let savedTheme: Theme = 'auto';
 try {
   const t = localStorage.getItem('bp-theme');
-  if (t === 'light' || t === 'dark') setTheme(t);
+  if (t === 'light' || t === 'dark') savedTheme = t;
 } catch {
   // ignore
 }
-$('bp-theme').onclick = () => {
-  const dark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-  setTheme(dark ? 'light' : 'dark');
-};
+setTheme(savedTheme);
+themeSel.value = savedTheme;
+themeSel.onchange = () => setTheme(themeSel.value as Theme);
 $('bp-scope').querySelectorAll<HTMLElement>('[data-s]').forEach((b) => {
   b.onclick = () => {
     scope = b.dataset.s === 'focus' ? 'focus' : 'all';

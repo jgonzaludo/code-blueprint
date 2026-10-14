@@ -253,3 +253,15 @@ describe('the window is read only', () => {
     expect(s2.plan.review).toMatchObject({ state: 'changes', note: 'leave b alone' });
   });
 });
+
+describe('one watcher per project', () => {
+  it('finds a running watcher for the same root, and nothing for a stopped one', async () => {
+    const { findRunning } = await import('../src/server.js');
+    const { srv, root } = await boot();
+    const found = await findRunning(root);
+    expect(found?.port).toBe(srv.port);
+    expect(found?.url).toContain(`?t=${srv.token}`);
+    await srv.close();
+    expect(await findRunning(root)).toBeNull();
+  });
+});

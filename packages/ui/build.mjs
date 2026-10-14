@@ -18,10 +18,12 @@ await build({
   logLevel: 'warning',
 });
 
+// the app's own fonts (Anthropic Sans and Mono) are proprietary and can't be shipped, so these are the
+// closest open ones. the css puts the app's fonts first, so wherever they exist they win.
 const fonts = [
-  ['node_modules/@fontsource-variable/schibsted-grotesk/files/schibsted-grotesk-latin-wght-normal.woff2', 'schibsted-grotesk.woff2'],
-  ['node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2', 'jetbrains-mono-400.woff2'],
-  ['node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2', 'jetbrains-mono-600.woff2'],
+  ['node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2', 'instrument-sans.woff2'],
+  ['node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2', 'ibm-plex-mono-400.woff2'],
+  ['node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2', 'ibm-plex-mono-500.woff2'],
 ];
 for (const [from, to] of fonts) fs.copyFileSync(from, path.join(dist, 'fonts', to));
 

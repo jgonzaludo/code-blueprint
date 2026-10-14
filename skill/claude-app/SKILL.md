@@ -12,7 +12,7 @@ Blueprint parses a TS or JS project into blocks of exact code with call arrows. 
 The map is built from real files, so you need them.
 
 - Files attached, a cloned repo, or a linked computer: go on.
-- Linked computer (desktop app can run commands on the user's machine): prefer the live version. Run `blueprint watch --no-open` there, open the URL in the built-in browser pane if you have one (otherwise give the user the localhost URL), then use the Claude Code steps (`print`, `plan`, `check`). The map then updates on every save. Use snapshots only if that is not possible.
+- Linked computer (desktop app can run commands on the user's machine): prefer the live version. Run `blueprint watch --no-open` there, open the URL in the built-in browser pane if you have one, make sure it is displayed rather than hidden, and print the URL on its own line (otherwise give the user the localhost URL), then use the Claude Code steps (`print`, `plan`, `check`). The map then updates on every save. Use snapshots only if that is not possible.
 - No code: say so in one line and ask for the files or a GitHub repo. Do not invent a map, and do not describe structure you have not parsed.
 
 ## Run it
@@ -28,7 +28,7 @@ Use `blueprint` if it is on the PATH, otherwise `npx code-blueprint`. If neither
 ## Planning a feature
 
 1. Draft the full contents of each new or changed file. Keep them as temp files, never over real files yet.
-2. `blueprint plan new <id> --title "<short title>"`, then `blueprint plan add <id> <path> --from <tempfile>` for each file. Use `blueprint plan claim <id> <fromBlock> <toBlock> --note "<why>"` only for a call you intend but did not write into any draft.
+2. `blueprint plan new <id> --title "<short title>"`, then `blueprint plan add <id> <path> --from <tempfile>` for each file (or `blueprint plan sketch <id> <path>::<name> --sig "<signature>"` for a block you only want to describe). Use `blueprint plan claim <id> <fromBlock> <toBlock> --note "<why>"` only for a call you intend but did not write into any draft.
 3. `blueprint snapshot --plan <id> --out blueprint.html`. It contains the plan's files plus one hop, so it stays small. Publish it as an artifact titled "Blueprint: <plan title>" and remember its URL.
 4. Tell the user what is on it: new files in a band on top, changed files badged, zoom in for exact lines, dashed arrows are proposed and a hollow arrowhead is a claim. Add a few lines from `blueprint plan show <id>`.
 5. Wait for approval. Do not apply anything until the user says go.

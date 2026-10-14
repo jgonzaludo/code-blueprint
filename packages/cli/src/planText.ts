@@ -42,7 +42,8 @@ export function renderPlanShow(g: Graph, plan: PlanFile, state: 'proposed' | 'ap
       out.push(`+ ${f}  NEW`);
       for (const b of blocksOf(f)) {
         const c = callees(b.id);
-        out.push(`    + ${c ? `${pad(b.name, width)}  -> ${c}` : b.name}`);
+        const tag = b.sketch ? '  (sketch)' : '';
+        out.push(`    + ${c ? `${pad(b.name, width)}  -> ${c}` : b.name}${tag}`);
       }
     } else if (s === 'del') {
       out.push(`- ${f}  DELETED`);

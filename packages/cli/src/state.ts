@@ -1,4 +1,4 @@
-import { appliedGraph, checkPlan, isTestPath, parseTree, planGraph, type CheckResult, type Graph, type ParsedTree, type ReviewState } from '@blueprint/core';
+import { appliedGraph, checkPlan, isTestPath, markLanded, parseTree, planGraph, type CheckResult, type Graph, type ParsedTree, type ReviewState } from '@blueprint/core';
 import { allCards, type Positions } from '@blueprint/core/layout';
 import type { GraphBuilder } from './graph.js';
 import { placeFiles, placePlan, readLayoutCache, writeLayoutCache } from './layout.js';
@@ -14,6 +14,8 @@ export interface PlanState {
   review: { state: ReviewState; note?: string; at?: string };
   files: number;
   claims: number;
+  // how much of the plan is already real code, for "3 of 5 blocks written"
+  progress: { blocks: number; landed: number };
   // the proposal against the pre-plan code, and what the code looks like now with the check on it
   planGraph: Graph;
   appliedGraph: Graph;
@@ -49,7 +51,7 @@ export interface ComputeOptions {
 }
 
 // the plan on disk (newest unless asked), parsed three ways: pre-plan code, the draft, and the code now
-function loadPlan(root: string, o: ComputeOptions, disk: ParsedTree, cache: Positions): { plan: PlanState; positions: Positions } | null {
+function loadPlan(root: string, o: ComputeOptions, disk: ParsedTree, cache: Positions): { plan: PlanState | null; positions: Positions } | null {
   const all = listPlans(root);
   const pick = o.planId ? all.find((p) => p.id === o.planId) : all[all.length - 1];
   if (!pick) return null;
@@ -60,7 +62,8 @@ function loadPlan(root: string, o: ComputeOptions, disk: ParsedTree, cache: Posi
   const bo = baseOverlay(root, plan);
   const base = bo.size ? parseTree(root, { overlay: bo, exclude, diagnostics: false }) : disk;
   const check = checkPlan(disk, draft, plan, baseline);
-  const pg = planGraph(base, draft, plan);
+  const pg = planGraph(base, draft, plan, new Set(baseline?.blocks ?? []));
+  const progress = markLanded(pg, disk, draft);
   const ag = appliedGraph(base, disk, plan, check);
   // one set of positions for both views, so switching modes never shuffles the map
   const union: Graph = { ...pg, fstat: { ...ag.fstat, ...pg.fstat }, fedges: [...pg.fedges, ...ag.fedges] };
@@ -70,14 +73,25 @@ function loadPlan(root: string, o: ComputeOptions, disk: ParsedTree, cache: Posi
     plan.files.length > 0 &&
     plan.files.every((f) => overlay.get(f) !== undefined && disk.texts.get(f) === overlay.get(f)) &&
     plan.delete.every((f) => !disk.texts.has(f));
+  // nothing pending: every planned block is real, every planned arrow confirmed and nothing extra.
+  // the window then goes back to plain current code, with no plan tabs.
+  const complete =
+    (progress.blocks > 0 || check.summary.planned > 0) &&
+    progress.landed === progress.blocks &&
+    check.summary.missing === 0 &&
+    check.summary.unplanned === 0 &&
+    check.blocks.missing.length === 0 &&
+    check.blocks.extra.length === 0;
+  if (complete) return { plan: null, positions: {} };
   return {
     plan: {
       id: plan.id,
       title: plan.title,
       state: applied ? 'applied' : 'proposed',
       review: { state: reviewOf(plan), note: plan.review?.note, at: plan.review?.at },
-      files: plan.files.length,
+      files: plan.files.length + (plan.sketch?.length ?? 0),
       claims: plan.claims.length,
+      progress,
       planGraph: pg,
       appliedGraph: ag,
       positions,
@@ -96,6 +110,6 @@ export async function computeState(builder: GraphBuilder, o: ComputeOptions): Pr
   const loaded = loadPlan(o.root, o, tree, cache);
   if (loaded) cache = { ...cache, ...loaded.positions };
   if (o.writeCache !== false) writeLayoutCache(o.root, cache);
-  const plans = listPlans(o.root).map((p) => ({ id: p.id, title: p.title, created: p.created, files: p.files.length, claims: p.claims.length, review: reviewOf(p) }));
+  const plans = listPlans(o.root).map((p) => ({ id: p.id, title: p.title, created: p.created, files: p.files.length + (p.sketch?.length ?? 0), claims: p.claims.length, review: reviewOf(p) }));
   return { graph, positions, plans, plan: loaded?.plan ?? null };
 }

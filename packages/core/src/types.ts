@@ -37,6 +37,10 @@ export interface Block {
   members: Member[];
   exported?: boolean;
   external?: { from: string };
+  // plan views only. a sketch is a block the plan only describes (a signature, no body).
+  sketch?: boolean;
+  // plan views only. true once the real code on disk has this block, so it can draw solid.
+  landed?: boolean;
 }
 
 export interface Edge {
@@ -50,6 +54,8 @@ export interface Edge {
   source?: 'parser' | 'claim';
   check?: 'confirmed' | 'missing' | 'unplanned';
   resolution?: 'checker' | 'name-match' | 'unresolved';
+  // plan views only. true once the real code has this arrow.
+  landed?: boolean;
 }
 
 export interface FileEdge {

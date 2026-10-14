@@ -1,35 +1,41 @@
-@font-face { font-family: 'Schibsted Grotesk'; src: url('/fonts/schibsted-grotesk.woff2') format('woff2'); font-weight: 400 900; font-display: swap; }
-@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/jetbrains-mono-600.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url('/fonts/instrument-sans.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-500.woff2') format('woff2'); font-weight: 500 700; font-display: swap; }
 
 :root {
-  --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f6f9; --canvas: #f7f9fb; --dot: #d3dbe4;
-  --ink: #14202c; --ink-2: #38485a; --muted: #5b6b7b; --line: #cdd6df;
-  --accent: #1b6fc4; --accent-soft: #dbe9f8;
-  --blue: #1b86c9; --purple: #7b4fd0; --teal: #168a80;
-  --add: #1e8a4c; --add-bg: rgba(30, 138, 76, .13); --del: #c23b3b; --del-bg: rgba(194, 59, 59, .12); --mod: #a8740a; --mod-bg: rgba(212, 155, 0, .16);
-  --syn-kw: #a02f9c; --syn-str: #b4530b; --syn-cm: #6b7b8a; --syn-num: #1a6fb5;
-  --shadow: 0 1px 2px rgba(20, 32, 44, .08), 0 6px 18px rgba(20, 32, 44, .06);
-  --font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* light, close to Claude's own: warm paper, near-black ink, clay accent */
+  --bg: #faf9f5; --surface: #ffffff; --surface-2: #f5f4ed; --canvas: #f0eee6; --dot: #ddd8ca;
+  --ink: #141413; --ink-2: #3d3d3a; --muted: #73726c; --line: #ded9cc;
+  --accent: #c96442; --accent-soft: #f4e1d8;
+  --blue: #5b88b3; --purple: #8a6fb8; --teal: #4f9a93; --orange: #c96442;
+  --add: #3f8a5a; --add-bg: rgba(63, 138, 90, .13); --del: #c8483c; --del-bg: rgba(200, 72, 60, .12); --mod: #b07d1f; --mod-bg: rgba(201, 150, 44, .17);
+  --syn-kw: #9a4a8f; --syn-str: #b4592f; --syn-cm: #8a8880; --syn-num: #3d78a8;
+  --shadow: 0 1px 2px rgba(20, 20, 19, .08), 0 6px 18px rgba(20, 20, 19, .06);
+  /* the same stacks claude.ai declares: its own faces first, then system fonts. the open faces in the
+     middle are bundled stand-ins for when the page can't see Anthropic's (they're not shipped). */
+  --font-ui: 'Anthropic Sans', 'Instrument Sans', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Anthropic Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
-    --ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
-    --blue: #4cb4f0; --purple: #a98cff; --teal: #4ad8c8;
-    --add: #4fd88a; --add-bg: rgba(79, 216, 138, .14); --del: #ff7b72; --del-bg: rgba(255, 123, 114, .14); --mod: #e8c75a; --mod-bg: rgba(232, 199, 90, .16);
-    --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+    /* dark, close to Claude Code's: warm charcoal, cream ink, clay accent */
+    --bg: #1f1e1d; --surface: #262624; --surface-2: #30302e; --canvas: #1b1a19; --dot: #302f2c;
+    --ink: #faf9f5; --ink-2: #d1cfc5; --muted: #9c9a92; --line: #3d3d3a;
+    --accent: #d97757; --accent-soft: rgba(217, 119, 87, .18);
+    --blue: #7fa8d0; --purple: #a78bd0; --teal: #6dbfb5; --orange: #d97757;
+    --add: #7fb88f; --add-bg: rgba(127, 184, 143, .15); --del: #e87a6e; --del-bg: rgba(232, 122, 110, .15); --mod: #e3b65a; --mod-bg: rgba(227, 182, 90, .17);
+    --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #8d8b83; --syn-num: #8fbfe8;
     --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0b1016; --surface: #131b24; --surface-2: #1a2430; --canvas: #0f151c; --dot: #1e2935;
-  --ink: #e6edf3; --ink-2: #c2cfdb; --muted: #8fa1b3; --line: #2a3745; --accent: #5aa9ff; --accent-soft: #1c3550;
-  --blue: #4cb4f0; --purple: #a98cff; --teal: #4ad8c8;
-  --add: #4fd88a; --add-bg: rgba(79, 216, 138, .14); --del: #ff7b72; --del-bg: rgba(255, 123, 114, .14); --mod: #e8c75a; --mod-bg: rgba(232, 199, 90, .16);
-  --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #7a8b9b; --syn-num: #6ab8ff;
+  --bg: #1f1e1d; --surface: #262624; --surface-2: #30302e; --canvas: #1b1a19; --dot: #302f2c;
+  --ink: #faf9f5; --ink-2: #d1cfc5; --muted: #9c9a92; --line: #3d3d3a;
+  --accent: #d97757; --accent-soft: rgba(217, 119, 87, .18);
+  --blue: #7fa8d0; --purple: #a78bd0; --teal: #6dbfb5; --orange: #d97757;
+  --add: #7fb88f; --add-bg: rgba(127, 184, 143, .15); --del: #e87a6e; --del-bg: rgba(232, 122, 110, .15); --mod: #e3b65a; --mod-bg: rgba(227, 182, 90, .17);
+  --syn-kw: #d58af0; --syn-str: #f0a45c; --syn-cm: #8d8b83; --syn-num: #8fbfe8;
   --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
   color-scheme: dark;
 }
@@ -220,3 +226,61 @@ button:focus-visible, .bp-blk:focus-visible, .bp-vp:focus-visible { outline: 2px
 .bp-map .bp-ed.bp-hot { stroke-width: 9; stroke-dasharray: 26 18; }
 @keyframes bp-flow { to { stroke-dashoffset: -16; } }
 @media (prefers-reduced-motion: reduce) { .bp-ed.bp-hot { animation: none; stroke-dasharray: none; } }
+
+/* header controls */
+a.bp-btn { text-decoration: none; display: inline-block; color: inherit; }
+.bp-themesel { width: auto; padding: 5px 8px; }
+.bp-vs { align-self: flex-start; font-size: 12.5px; }
+.bp-top { row-gap: 8px; }
+
+/* plan view: dashed until the real code exists, then solid. a block that just landed pops once. */
+.bp-mode-plan .bp-blk.bp-pending { border-style: dashed; opacity: .78; }
+.bp-mode-plan .bp-blk.bp-landed { border-style: solid; background: color-mix(in srgb, var(--add) 8%, var(--surface)); }
+.bp-blk.bp-sk .bp-bb { font-style: italic; color: var(--muted); }
+.bp-blk.bp-pop { animation: bp-pop 1.1s ease-out 1; }
+@keyframes bp-pop { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--add) 75%, transparent); transform: scale(.985); } 60% { box-shadow: 0 0 0 14px transparent; transform: scale(1.01); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bp-blk.bp-pop { animation: none; } }
+.bp-ed.bp-confirmed { transition: stroke .4s, opacity .4s; }
+
+/* card: progress and a legend that never clips */
+.bp-prog { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
+.bp-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.bp-bar i { display: block; height: 100%; background: var(--add); border-radius: 3px; transition: width .4s ease; }
+.bp-legendrow { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.bp-li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.bp-legendrow .bp-lg { width: 18px; margin-left: 0; flex: none; }
+
+/* room for the file header, badges included */
+.bp-map .bp-fn { font-size: 36px; }
+.bp-map .bp-badge { font-size: 20px; }
+.bp-map .bp-row { min-height: 32px; }
+
+/* project zoom: the header fills the block it belongs to instead of a fixed height that spills out of short blocks */
+.bp-map .bp-bh { height: 100%; min-height: 0; padding: 0 16px; align-items: center; gap: 12px; }
+.bp-map .bp-bn { font-size: 24px; line-height: 1.15; }
+.bp-map .bp-blk { display: flex; flex-direction: column; }
+.bp-map .bp-blk.bp-k-imports .bp-bn { font-size: 20px; }
+
+/* styling to sit next to Claude: quiet weights, neutral selected states, soft borders */
+body { font-size: 14px; letter-spacing: -.003em; -webkit-font-smoothing: antialiased; }
+.bp-top h1 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.bp-live { font-weight: 500; }
+.bp-btn, .bp-seg button { font-weight: 500; }
+.bp-seg { border-radius: 10px; padding: 2px; gap: 2px; background: var(--surface-2); border-color: var(--line); }
+.bp-seg button { border: 0; border-radius: 8px; padding: 5px 12px; color: var(--muted); }
+.bp-seg button:hover { color: var(--ink); }
+.bp-seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, .12); }
+.bp-btn { border-radius: 9px; background: var(--surface); }
+.bp-btn:hover { background: var(--surface-2); border-color: var(--line); }
+.bp-select { border-radius: 9px; background: var(--surface); color: var(--ink); }
+.bp-panel { border-radius: 14px; }
+.bp-card, .bp-insp { border-radius: 14px; background: var(--surface); }
+.bp-lvl { font-weight: 500; }
+.bp-chip { border-radius: 9px; }
+.bp-chip b { font-weight: 500; }
+/* code names read as the inline code chips in Claude's chat: warm text on a faint chip */
+.bp-nm, .bp-bn { font-weight: 500; }
+.bp-bk { border-radius: 5px; }
+.bp-tag { font-weight: 500; border-radius: 5px; }
+.bp-fn { font-weight: 500; }
+.bp-cardhead b { font-weight: 600; }

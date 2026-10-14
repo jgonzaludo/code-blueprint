@@ -11,6 +11,7 @@ export {
   baselineOf,
   checkPlan,
   edgeKey,
+  markLanded,
   planGraph,
   planNeighbourhood,
   restrictGraph,
@@ -21,6 +22,7 @@ export {
   type PlanClaim,
   type PlanFile,
   type PlanReview,
+  type PlanSketch,
   type ReviewState,
 } from './plan.js';
 

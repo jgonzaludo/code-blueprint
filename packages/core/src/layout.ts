@@ -6,7 +6,7 @@ export const L = {
   COLW: 420, // block column width
   GAP: 72, // gap between columns, wide enough for arrows to run between them
   PAD: 16, // card padding
-  FH: 112, // file header height, badges included
+  FH: 132, // file header height, badges included
   BG: 18, // gap between stacked blocks
   LH: 14, // code line height
   BHH: 26, // block header height

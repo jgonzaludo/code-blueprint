@@ -19,6 +19,14 @@ export interface PlanReview {
   at: string;
 }
 
+// a block the plan only describes: where it will live, its kind and a one-line signature.
+// no body. it shows on the map as a dashed slot until real code with that name lands.
+export interface PlanSketch {
+  id: BlockId; // "src/promos.ts::applyPromo"
+  kind: 'function' | 'class' | 'const' | 'interface' | 'type' | 'enum';
+  signature: string;
+}
+
 export interface PlanFile {
   id: string;
   title: string;
@@ -29,6 +37,8 @@ export interface PlanFile {
   // planned files that did not exist when they were added. the originals of the others are
   // captured under base/ so the plan can always be shown against the pre-plan code.
   baseAbsent?: string[];
+  // blocks described without code (intent-only), for planning before any code is written
+  sketch?: PlanSketch[];
   // absent means drafting. any edit to the plan after it was marked ready sends it back to drafting.
   review?: PlanReview;
 }
@@ -47,9 +57,39 @@ export function baselineOf(tree: ParsedTree): PlanBaseline {
 }
 
 // disk (before) to draft (after), with the plan's claims drawn as extra arrows
-export function planGraph(disk: ParsedTree, draft: ParsedTree, plan: PlanFile): Graph {
+export function planGraph(disk: ParsedTree, draft: ParsedTree, plan: PlanFile, wasBlocks?: ReadonlySet<string>): Graph {
   const graph = buildGraph(disk, draft);
   for (const e of graph.edges) e.source = 'parser';
+  // sketched blocks: only those the drafts don't already contain real code for
+  for (const sk of plan.sketch ?? []) {
+    const have = graph.blocks[sk.id];
+    if (have) {
+      // the code for a sketch may already be on disk. if it wasn't there when the plan started, it is
+      // still this plan's new block (now landed), even though "disk" can't tell it apart from before.
+      if (wasBlocks && have.status === 'same' && !wasBlocks.has(sk.id)) {
+        have.status = 'new';
+        const f = have.file;
+        const hadFile = [...wasBlocks].some((id) => id.startsWith(`${f}::`));
+        graph.fstat[f] = hadFile ? 'mod' : 'new';
+      }
+      continue;
+    }
+    const file = sk.id.split('::')[0] as string;
+    const name = sk.id.split('::')[1] as string;
+    graph.blocks[sk.id] = {
+      id: sk.id,
+      file,
+      kind: sk.kind,
+      name,
+      status: 'new',
+      sketch: true,
+      members: [],
+      lines: [{ t: sk.signature, d: '+', o: null, n: null }],
+    };
+    // a sketched file the project doesn't have yet is a new file
+    if (!graph.fstat[file]) graph.fstat[file] = 'new';
+    else if (graph.fstat[file] === 'same') graph.fstat[file] = 'mod';
+  }
   const claims: Edge[] = [];
   for (const c of plan.claims) {
     if (!graph.blocks[c.from] || !graph.blocks[c.to]) continue;
@@ -138,9 +178,17 @@ export function checkPlan(applied: ParsedTree, draft: ParsedTree, plan: PlanFile
     if (!planned.has(fileOf(id)) || wasBlocks.has(id)) continue;
     if (!applied.blocks.has(id)) missing.push(id);
   }
+  // sketched blocks were never in a draft file, so they count as planned too
+  const sketched = new Set((plan.sketch ?? []).map((k) => k.id));
+  for (const id of sketched) if (!applied.blocks.has(id)) missing.push(id);
   const extra: BlockId[] = [];
   for (const id of applied.blocks.keys()) {
-    if (!planned.has(fileOf(id)) || wasBlocks.has(id) || draft.blocks.has(id)) continue;
+    if (wasBlocks.has(id) || draft.blocks.has(id) || sketched.has(id)) continue;
+    // a new file's imports and loose statements are never something anyone plans
+    const kind = applied.blocks.get(id)?.kind;
+    if (kind === 'imports' || kind === 'module') continue;
+    // a sketch names the file it expects, so only the files the plan owns can have strays
+    if (!planned.has(fileOf(id)) && ![...sketched].some((k) => fileOf(k) === fileOf(id))) continue;
     extra.push(id);
   }
 
@@ -155,7 +203,7 @@ export function checkPlan(applied: ParsedTree, draft: ParsedTree, plan: PlanFile
       planned: count('confirmed') + count('missing'),
     },
     edges: out,
-    blocks: { missing: missing.sort(), extra: extra.sort() },
+    blocks: { missing: [...new Set(missing)].sort(), extra: extra.sort() },
   };
 }
 
@@ -224,4 +272,34 @@ export function planNeighbourhood(g: Graph, planFiles: Iterable<string>): Set<st
     if (core.has(t)) keep.add(f);
   }
   return keep;
+}
+
+const sameCode = (a: string[] | undefined, b: string[] | undefined) => !!a && !!b && a.length === b.length && a.every((l, i) => l === b[i]);
+
+// mark what of the plan is already real. blocks and arrows flip to landed as the code is written,
+// which is what lets the map solidify one block at a time while Claude works.
+export function markLanded(g: Graph, disk: ParsedTree, draft: ParsedTree): { blocks: number; landed: number } {
+  let blocks = 0;
+  let landed = 0;
+  for (const b of Object.values(g.blocks)) {
+    if (b.kind === 'imports' || b.kind === 'module') continue;
+    if (b.status === 'new' || b.status === 'mod') {
+      blocks++;
+      const onDisk = disk.blocks.get(b.id);
+      const want = draft.blocks.get(b.id);
+      b.landed = !!onDisk && (b.sketch ? true : sameCode(onDisk.code, want?.code));
+      if (b.landed) landed++;
+    } else if (b.status === 'del') {
+      blocks++;
+      b.landed = !disk.blocks.has(b.id);
+      if (b.landed) landed++;
+    }
+  }
+  const pairs = new Set([...disk.edges.values()].map((e) => `${e.from}|${e.to}`));
+  for (const e of g.edges) {
+    if (e.status === 'same') e.landed = true;
+    else if (e.source === 'claim') e.landed = pairs.has(`${e.from}|${e.to}`);
+    else e.landed = disk.edges.has(`${e.from}|${e.to}|${e.callText}`);
+  }
+  return { blocks, landed };
 }
