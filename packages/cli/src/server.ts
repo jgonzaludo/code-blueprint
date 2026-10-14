@@ -46,6 +46,19 @@ const WATCHED = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$|(^|[\\/])tsconfig\.json$/;
 
 export const serverFile = (root: string) => path.join(root, '.blueprint', 'server.json');
 
+// a watcher already serving this project, if one is really alive and answering
+export async function findRunning(root: string): Promise<{ port: number; token: string; url: string; pid: number } | null> {
+  try {
+    const info = JSON.parse(fs.readFileSync(serverFile(root), 'utf8')) as { pid: number; port: number; token: string };
+    process.kill(info.pid, 0); // throws when the process is gone
+    const r = await fetch(`http://127.0.0.1:${info.port}/api/status`, { headers: { 'x-blueprint-token': info.token }, signal: AbortSignal.timeout(1500) });
+    if (!r.ok) return null;
+    return { ...info, url: `http://127.0.0.1:${info.port}/?t=${info.token}` };
+  } catch {
+    return null;
+  }
+}
+
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const root = path.resolve(opts.root);
   const log = opts.log ?? (() => {});

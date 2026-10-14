@@ -9,7 +9,7 @@ import { checkCommand, planCommand } from './planCommands.js';
 import { skillCommand } from './skill.js';
 import { version } from './version.js';
 import { renderFileTree } from './print.js';
-import { serverFile, startServer } from './server.js';
+import { findRunning, serverFile, startServer } from './server.js';
 
 export interface IO {
   out: (s: string) => void;
@@ -29,6 +29,7 @@ usage:
   blueprint plan new <id> [--title "..."]
   blueprint plan add <id> <file> [--from <path>]     (or pipe the draft on stdin)
   blueprint plan rm <id> <file>
+  blueprint plan sketch <id> <file::name> [--kind function] [--sig "applyPromo(order, code): Order"]   (describe a block without code)
   blueprint plan claim <id> <fromBlock> <toBlock> [--note "..."]
   blueprint plan ready <id>                          (drafting is done, ready for the user to review)
   blueprint plan approve <id>                        (the user's go, same as the Approve button)
@@ -107,6 +108,8 @@ export async function run(argv: string[], io: IO): Promise<number> {
         baseline: { type: 'string' },
         relayout: { type: 'boolean', default: false },
         yes: { type: 'boolean', default: false },
+        kind: { type: 'string' },
+        sig: { type: 'string' },
         help: { type: 'boolean', short: 'h', default: false },
         version: { type: 'boolean', short: 'v', default: false },
       },
@@ -137,7 +140,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
   }
   if (cmd === 'skill') return skillCommand(positionals.slice(1), { root: root0, dir: values.dir, project: values.project === true, app: values.app === true, json: values.json === true }, io);
   if (cmd === 'plan' || cmd === 'check') {
-    const o = { yes: values.yes === true, title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
+    const o = { kind: values.kind, sig: values.sig, yes: values.yes === true, title: values.title, from: values.from, note: values.note, json: values.json === true, includeTests: values['include-tests'] === true };
     return cmd === 'check' ? checkCommand(root0, positionals[1], o, io) : planCommand(root0, positionals.slice(1), o, io);
   }
   if (PLANNED.has(cmd)) {
@@ -226,6 +229,14 @@ async function watchCommand(
   if (!fs.existsSync(path.join(defaultUiDir, 'index.html'))) {
     io.err('blueprint: the ui bundle is missing. run the build first (pnpm build)\n');
     return 1;
+  }
+  // one window per project: if a watcher is already up here, hand back its address and stop
+  const running = await findRunning(root);
+  if (running) {
+    io.out(`blueprint  already watching ${root}\n`);
+    io.out(`blueprint  ${running.url}\n`);
+    if (!values['no-open'] && !drivenByClaude() && canOpenBrowser()) await openBrowser(running.url);
+    return 0;
   }
   const srv = await startServer({
     root,

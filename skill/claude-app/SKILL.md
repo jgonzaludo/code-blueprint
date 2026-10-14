@@ -28,7 +28,7 @@ Use `blueprint` if it is on the PATH, otherwise `npx code-blueprint`. If neither
 ## Planning a feature
 
 1. Draft the full contents of each new or changed file. Keep them as temp files, never over real files yet.
-2. `blueprint plan new <id> --title "<short title>"`, then `blueprint plan add <id> <path> --from <tempfile>` for each file. Use `blueprint plan claim <id> <fromBlock> <toBlock> --note "<why>"` only for a call you intend but did not write into any draft.
+2. `blueprint plan new <id> --title "<short title>"`, then `blueprint plan add <id> <path> --from <tempfile>` for each file (or `blueprint plan sketch <id> <path>::<name> --sig "<signature>"` for a block you only want to describe). Use `blueprint plan claim <id> <fromBlock> <toBlock> --note "<why>"` only for a call you intend but did not write into any draft.
 3. `blueprint snapshot --plan <id> --out blueprint.html`. It contains the plan's files plus one hop, so it stays small. Publish it as an artifact titled "Blueprint: <plan title>" and remember its URL.
 4. Tell the user what is on it: new files in a band on top, changed files badged, zoom in for exact lines, dashed arrows are proposed and a hollow arrowhead is a claim. Add a few lines from `blueprint plan show <id>`.
 5. Wait for approval. Do not apply anything until the user says go.

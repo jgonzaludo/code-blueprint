@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PlanBaseline, PlanClaim, PlanFile, ReviewState } from '@blueprint/core';
+import type { PlanBaseline, PlanClaim, PlanFile, PlanSketch, ReviewState } from '@blueprint/core';
 import { ensureStateDir } from './layout.js';
 
 // plans live on disk under .blueprint/plans/<id>/, so any agent can write one with no server running:
@@ -158,6 +158,22 @@ export function removeFile(root: string, id: string, rel: string): PlanFile {
   });
 }
 
+const KINDS = ['function', 'class', 'const', 'interface', 'type', 'enum'] as const;
+
+// describe a block without writing it: where it will live, what kind, and a one-line signature
+export function addSketch(root: string, id: string, block: string, kind: string, signature: string): PlanFile {
+  const [file, name] = block.split('::');
+  if (!file || !name) throw new PlanError(`'${block}' should look like src/file.ts::name`);
+  const rel = checkRel(root, file);
+  if (!(KINDS as readonly string[]).includes(kind)) throw new PlanError(`kind must be one of: ${KINDS.join(', ')}`);
+  if (!/^[A-Za-z_$][\w$]*$/.test(name)) throw new PlanError(`'${name}' is not a plain identifier`);
+  const entry: PlanSketch = { id: `${rel}::${name}`, kind: kind as PlanSketch['kind'], signature: signature.slice(0, 200) };
+  return update(root, id, (p) => {
+    p.sketch = [...(p.sketch ?? []).filter((k) => k.id !== entry.id), entry];
+    resetReview(p);
+  });
+}
+
 export function addClaim(root: string, id: string, claim: PlanClaim): PlanFile {
   return update(root, id, (p) => {
     if (!p.claims.some((c) => c.from === claim.from && c.to === claim.to)) p.claims.push(claim);
@@ -185,11 +201,12 @@ export function applyPlan(root: string, id: string): { written: string[]; delete
   return { written, deleted };
 }
 
-export const reviewOf = (p: PlanFile): ReviewState => (p.files.length || p.delete.length ? (p.review?.state ?? 'drafting') : 'drafting');
+const hasContent = (p: PlanFile) => !!(p.files.length || p.delete.length || p.sketch?.length);
+export const reviewOf = (p: PlanFile): ReviewState => (hasContent(p) ? (p.review?.state ?? 'drafting') : 'drafting');
 
 export function setReview(root: string, id: string, state: ReviewState, note?: string): PlanFile {
   const cur = readJson<PlanFile>(path.join(planDir(root, id), 'plan.json'));
-  if (state === 'ready' && !cur.files.length && !cur.delete.length) throw new PlanError(`plan '${id}' has no files yet. add drafts first`);
+  if (state === 'ready' && !hasContent(cur)) throw new PlanError(`plan '${id}' has nothing in it yet. add drafts or sketches first`);
   if (state === 'approved' && reviewOf(cur) === 'drafting') throw new PlanError(`plan '${id}' is still drafting. mark it ready first: blueprint plan ready ${id}`);
   return update(root, id, (p) => {
     p.review = { state, at: new Date().toISOString(), ...(note ? { note: note.slice(0, 500) } : {}) };

@@ -2,13 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { baselineOf, checkPlan, isTestPath, parseTree, planGraph, type ParsedTree, type PlanFile } from '@blueprint/core';
 import {
-  PlanError, addClaim, addDraft, applyPlan, archivePlan, baseOverlay, checkRel, createPlan, dropPlan, listPlans, readPlan, removeFile, resolveId, reviewOf, setReview,
+  PlanError, addClaim, addDraft, addSketch, applyPlan, archivePlan, baseOverlay, checkRel, createPlan, dropPlan, listPlans, readPlan, removeFile, resolveId, reviewOf, setReview,
 } from './plans.js';
 import { renderCheck, renderPlanList, renderPlanShow } from './planText.js';
 import type { IO } from './run.js';
 
 interface Opts {
   yes?: boolean;
+  kind?: string;
+  sig?: string;
   title?: string;
   from?: string;
   note?: string;
@@ -78,6 +80,13 @@ export async function planCommand(root: string, args: string[], o: Opts, io: IO)
         resolveId(root, a);
         const plan = addClaim(root, a, { from: b, to: c, note: o.note });
         out(io, o.json, plan, `claim added to plan '${a}': ${b} -> ${c} (${plan.claims.length} claims)`);
+        return 0;
+      }
+      case 'sketch': {
+        if (!a || !b) throw new PlanError('usage: blueprint plan sketch <id> <file::name> [--kind function] [--sig "applyPromo(order, code): Order"]');
+        resolveId(root, a);
+        const plan = addSketch(root, a, b, o.kind ?? 'function', o.sig ?? b.split('::')[1] ?? '');
+        out(io, o.json, plan, `sketched ${b} in plan '${a}' (${plan.sketch?.length ?? 0} sketches)`);
         return 0;
       }
       case 'list': {
@@ -164,7 +173,7 @@ export async function planCommand(root: string, args: string[], o: Opts, io: IO)
         return 0;
       }
       default:
-        io.err('usage: blueprint plan <new|add|rm|claim|ready|approve|changes|status|list|show|apply|archive|drop> ...\n');
+        io.err('usage: blueprint plan <new|add|rm|sketch|claim|ready|approve|changes|status|list|show|apply|archive|drop> ...\n');
         return 2;
     }
   } catch (e) {

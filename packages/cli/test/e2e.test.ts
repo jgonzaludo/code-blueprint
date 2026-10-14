@@ -171,7 +171,8 @@ run('map page in a real browser', () => {
     if (!s) return;
     await s.page.screenshot({ path: path.join(outDir, 'dark-map.png') });
     const bg = await s.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(bg).toBe('rgb(11, 16, 22)');
+    // Claude Code's warm charcoal
+    expect(bg).toBe('rgb(31, 30, 29)');
     await s.ctx.close();
   });
 
@@ -330,4 +331,75 @@ run('focus on a big project', () => {
     expect(errors).toEqual([]);
     await ctx.close();
   }, 90_000);
+});
+
+run('planning in plan mode, then the code landing', () => {
+  let root4 = '';
+  let srv4: RunningServer | null = null;
+
+  beforeAll(async () => {
+    if (!browser) return;
+    root4 = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-e2e-sketch-'));
+    fs.cpSync(path.join(repo, 'examples/refund-demo/before'), root4, { recursive: true });
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root4, stdio: 'pipe' });
+    git('init', '-q', '-b', 'main');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'base');
+    srv4 = await startServer({ root: root4, port: 0, baseline: 'HEAD', includeTests: false, uiDir, watch: true });
+  }, 60_000);
+
+  afterAll(async () => {
+    await srv4?.close();
+    if (root4) fs.rmSync(root4, { recursive: true, force: true });
+  });
+
+  it('shows sketched blocks at once, turns them solid as code lands, then goes back to plain code', async () => {
+    if (!browser || !srv4) return;
+    const { baselineOf, parseTree } = await import('@blueprint/core');
+    const { addClaim, addSketch, createPlan, setReview } = await import('../src/plans.js');
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(srv4.url);
+    await page.waitForSelector('.bp-blk');
+    // no plan: no plan tabs
+    expect(await page.locator('#bp-modes').isVisible()).toBe(false);
+    const wait = { timeout: 30_000 };
+
+    // Claude plans: sketches and the calls between them, no code written
+    createPlan(root4, 'promos', 'promo codes', baselineOf(parseTree(root4, { diagnostics: false })));
+    addSketch(root4, 'promos', 'src/promos.ts::applyPromo', 'function', 'applyPromo(total: number): number');
+    addSketch(root4, 'promos', 'src/promos.ts::PromoCode', 'interface', 'interface PromoCode');
+    addClaim(root4, 'promos', { from: 'src/promos.ts::applyPromo', to: 'src/utils/money.ts::roundMoney', note: 'round the result' });
+    setReview(root4, 'promos', 'ready');
+    await srv4.refresh();
+
+    // the blocks appear on their own, dashed, in the plan tab
+    await page.waitForSelector('.bp-blk[data-id="src/promos.ts::applyPromo"].bp-pending', wait);
+    expect(await page.locator('#bp-modes button.on').textContent()).toBe("Claude's plan");
+    expect(await page.locator('.bp-blk.bp-sk').count()).toBe(2);
+    expect(await page.locator('#bp-card').innerText()).toContain('0 of 2 blocks written');
+
+    // accepted, then the code is written one block at a time
+    setReview(root4, 'promos', 'approved');
+    fs.writeFileSync(
+      path.join(root4, 'src/promos.ts'),
+      "import { roundMoney } from './utils/money';\nexport function applyPromo(total: number): number {\n  return roundMoney(total * 0.9);\n}\n",
+    );
+    await srv4.refresh();
+    await page.waitForSelector('.bp-blk[data-id="src/promos.ts::applyPromo"].bp-landed', wait);
+    expect(await page.locator('.bp-blk[data-id="src/promos.ts::PromoCode"]').getAttribute('class')).toContain('bp-pending');
+    expect(await page.locator('#bp-card').innerText()).toContain('1 of 2 blocks written');
+    await page.screenshot({ path: path.join(outDir, 'plan-progress.png') });
+
+    // the last block lands: nothing is pending, so the plan tabs go away and it is just the code
+    fs.appendFileSync(path.join(root4, 'src/promos.ts'), 'export interface PromoCode {\n  code: string;\n}\n');
+    await srv4.refresh();
+    await page.waitForFunction(() => (document.getElementById('bp-modes') as HTMLElement).hidden, null, wait);
+    expect(await page.locator('#bp-card').isVisible()).toBe(false);
+    expect(await page.locator('.bp-band').count()).toBe(0);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  }, 120_000);
 });
