@@ -482,7 +482,22 @@ function drawFileEdges(): void {
       const x = Math.max(a.x, t.x) + 140;
       const y1 = down ? a.y + a.h : a.y;
       const y2 = down ? t.y - 4 : t.y + t.h + 4;
-      d = `M${x} ${y1} L${x} ${y2}`;
+      // a card sitting between the two would hide the line and make it look like it starts there,
+      // so bow the arrow out past the right edge of anything in the way
+      const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
+      let right = -Infinity;
+      for (const [id, c] of Object.entries(cardBox)) {
+        if (id === fe.from || id === fe.to) continue;
+        if (c.x <= x && x <= c.x + c.w && c.y + c.h > lo && c.y < hi) right = Math.max(right, c.x + c.w);
+      }
+      if (right === -Infinity) d = `M${x} ${y1} L${x} ${y2}`;
+      else {
+        // short curves out and back with a straight run past the card between them
+        const px = right + 26;
+        const r = 26;
+        const sgn = down ? 1 : -1;
+        d = `M${x} ${y1} C${x} ${y1 + sgn * r} ${px} ${y1 + sgn * r} ${px} ${y1 + sgn * r * 2} L${px} ${y2 - sgn * r * 2} C${px} ${y2 - sgn * r} ${x} ${y2 - sgn * r} ${x} ${y2}`;
+      }
     }
     const k = fe.status === 'del' ? 'bp-gone' : fe.status === 'new' ? 'bp-new' : '';
     const mk = fe.status === 'del' ? 'bp-fmg' : fe.status === 'new' ? 'bp-fmn' : 'bp-fmb';
